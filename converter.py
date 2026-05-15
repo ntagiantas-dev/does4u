@@ -18,10 +18,15 @@ def read_pdf(file):
         pdf_reader = PyPDF2.PdfReader(file)
         text = ""
         for page in pdf_reader.pages:
-            if page.extract_text():
-                text += page.extract_text() + "\n"
+            # 8 κενά μέσα από το for
+            content = page.extract_text()
+            if content:
+                # 12 κενά μέσα από το if
+                text += content + "\n"
+        # ΠΡΟΣΟΧΗ: Το return πρέπει να είναι στην ίδια ευθεία με το for!
         return text if text.strip() else "Δεν βρέθηκε αναγνώσιμο κείμενο."
     except Exception as e:
+        # ΤΟ EXCEPT ΠΡΕΠΕΙ ΝΑ ΕΙΝΑΙ ΣΤΗΝ ΙΔΙΑ ΕΥΘΕΙΑ ΜΕ ΤΟ TRY
         return f"Σφάλμα ανάγνωσης PDF: {e}"
 
 def read_docx(file):
@@ -155,4 +160,4 @@ def show_converter_ui():
             )
             
     else:
-        st.warning("⚠️ Παρακαλώ ανεβάστε πρώτα ένα έγγραφο στο δεξί κουτί (Convert Box).")``
+        st.warning("⚠️ Παρακαλώ ανεβάστε πρώτα ένα έγγραφο στο δεξί κουτί (Convert Box).")
