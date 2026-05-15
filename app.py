@@ -11,11 +11,9 @@ from dash import load_codes
 valid_codes = load_codes()
 
 # --- ΡΥΘΜΙΣΕΙΣ ΕΜΦΑΝΙΣΗΣ ---
-# Εδώ ορίζουμε τον τίτλο που φαίνεται στην καρτέλα του browser και το layout.
 st.set_page_config(page_title="Does4U | Premium Legal AI", page_icon="⚖️", layout="wide")
 
 # --- CSS (ΤΟ "ΜΑΚΙΓΙΑΖ" ΤΗΣ ΣΕΛΙΔΑΣ) ---
-# Εδώ ελέγχουμε τα χρώματα στα κουμπιά και στα μενού για να φαίνονται επαγγελματικά.
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { background-color: #f8f9fb; color: #002b5c; }
@@ -24,8 +22,8 @@ st.markdown("""
     .report-container { background-color: #ffffff; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; }
     </style>
     """, unsafe_allow_html=True)
+
 #--- 2. Tο μυαλό (System Prompt)---
-# Αυτό το κείμενο το βλέπει μόνο η AI. Είναι οι "νόμοι" που ακολουθεί.
 SYSTEM_PROMPT = """
 Είσαι η Does4U, η πιο εξελιγμένη Τεχνητή Νοημοσύνη Νομικής και Φορολογικής Ανάλυσης στην Ελλάδα.
 Ο ρόλος σου είναι να αναλύεις ερωτήματα χρηστών με βάση:
@@ -37,19 +35,19 @@ SYSTEM_PROMPT = """
 🔍 ΑΝΑΛΥΣΗ: Επεξήγηση με απλά λόγια.
 🛠️ ΠΡΟΤΑΣΗ: Συγκεκριμένες κινήσεις για τον χρήστη.
 """
+
 #--- 3. Τα Κλειδιά (ΑΠΙ Keys & Session)---
-# Φόρτωση των κλειδιών από το αρχείο .env (για ασφάλεια)
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY")) 
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
 # Αρχικοποίηση "Μνήμης"
-# Αν δεν υπάρχουν ήδη, δημιουργούμε κουτάκια στη μνήμη για να ξέρουμε αν είναι ξεκλειδωμένο το app.
 if "unlock_converter" not in st.session_state:
     st.session_state.unlock_converter = False
 if "unlock_analysis" not in st.session_state:
     st.session_state.unlock_analysis = False
-#--- 4. SideBar & Promo Codes---
+
+#--- 4. SideBar & Promo Codes (ΔΙΟΡΘΩΜΕΝΟ)---
 with st.sidebar:
     # a. Λογότυπο
     try:
@@ -63,72 +61,64 @@ with st.sidebar:
     st.subheader("🎟️ Promo Code")
     promo_input = st.text_input("Εισάγετε κωδικό...", placeholder="π.χ. legal24", key="promo_code")
     
-if st.button("ΕΝΕΡΓΟΠΟΙΗΣΗ"):
-    # Εδώ ελέγχουμε αν αυτό που έγραψε ο πελάτης υπάρχει στη λίστα από το dash.py
-    if promo_input.upper().strip() in valid_codes:
-        st.success("Ο κωδικός ενεργοποιήθηκε!")
-        st.session_state.unlock_analysis = True  # Ξεκλειδώνει την ανάλυση
-        st.session_state.unlock_converter = True # Ξεκλειδώνει το PDF
-        st.rerun()
-    else:
-        st.error("Άκυρος κωδικός. Προσπαθήστε ξανά.")
+    if st.button("ΕΝΕΡΓΟΠΟΙΗΣΗ"):
+        if promo_input.upper().strip() in valid_codes:
+            st.success("Ο κωδικός ενεργοποιήθηκε!")
+            st.session_state.unlock_analysis = True  
+            st.session_state.unlock_converter = True 
+            st.rerun()
+        else:
+            st.error("Άκυρος κωδικός. Προσπαθήστε ξανά.")
+    
+    st.write("---")
     
     # c. Επιλογή Πακέτου (AI Model)
     st.subheader("📦 Επιλογή Επιπέδου Νοημοσύνης")
     package = st.radio("Διαθέσιμα Tiers:", ["1. Έμπειρος Αναλυτής", "2. Στρατηγικός Εταίρος", "3. OS-1 Neural"])
     
-    # Μεταφράζουμε την επιλογή του χρήστη σε όνομα μοντέλου που καταλαβαίνει η OpenAI
     model_map = {
         "1. Έμπειρος Αναλυτής": "gpt-4o-mini",
         "2. Στρατηγικός Εταίρος": "gpt-4o",
         "3. OS-1 Neural": "gpt-4-turbo"
     }
     selected_model = model_map[package]
+
 #--- 5. Η βιτρίνα και το ανέβασμα των αρχείων (Main UI & Uploaders)---
-# --- ΚΥΡΙΩΣ ΟΘΟΝΗ ---
 st.markdown('<div class="main-header"><h1>ΕΞΕΙΔΙΚΕΥΜΕΝΗ ΠΟΛΥΜΟΡΦΙΚΗ ΑΝΑΛΥΣΗ</h1></div>', unsafe_allow_html=True)
 
-# Δημιουργούμε δύο στήλες
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("⚖️ Analysis Box")
-    # Uploader για το PDF που θα αναλυθεί
     uploaded_file = st.file_uploader("Ανέβασμα PDF για Νομικό Έλεγχο", type="pdf", key="analysis_up")
 
 with col2:
     st.subheader("🔄 Convert Box")
-    # Uploader για αρχεία προς μετατροπή
     uploaded_conv = st.file_uploader("Ανέβασμα για Μετατροπή (PDF, JPG, κλπ)", type=["pdf", "txt", "docx","png", "jpg"], key="conv_up")
 
-# Έλεγχος αν πρέπει να εμφανίσουμε τον Converter (αν είναι ξεκλειδωμένος)
 if uploaded_conv:
     if st.session_state.get('unlock_converter', False):
         st.success("✅ Υπηρεσία Μετατροπής Ενεργή")
-        show_converter_ui() # Εδώ καλούμε το άλλο σου αρχείο (converter.py)
+        show_converter_ui() 
     else:
         st.warning("🔒 Η μετατροπή είναι Premium υπηρεσία. Βάλτε το Promo Code στο Sidebar.")
-#--- 6 H μηχανή Ανάλυσης (Core Logic)---
-# --- 6.1 ΠΡΟΕΤΟΙΜΑΣΙΑ ΕΡΩΤΗΣΗΣ ---
+
+#--- 6 Η μηχανή Ανάλυσης (Core Logic)---
 user_query = st.text_input("💬 Θέστε το ερώτημά σας (π.χ. Έλεγχος συμμόρφωσης με ΦΕΚ):")
 
-# Διάβασμα του PDF (αν υπάρχει)
 pdf_text = ""
 if uploaded_file:
     pdf_reader = PyPDF2.PdfReader(uploaded_file)
     pdf_text = "".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
     st.toast("✅ Το αρχείο φορτώθηκε!")
 
-# --- 6.2 ΕΚΤΕΛΕΣΗ (ΟΤΑΝ ΠΑΤΗΘΕΙ ΤΟ ΚΟΥΜΠΙ) ---
 if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ"):
-    # Έλεγχος αν ο χρήστης έχει ξεκλειδώσει την ανάλυση
     if not st.session_state.get('unlock_analysis', False):
         st.error("🔒 Η Premium Ανάλυση είναι κλειδωμένη. Εισάγετε Promo Code στο Sidebar.")
     
     elif uploaded_file and user_query:
         with st.status("⚖️ Η Does4U επεξεργάζεται το αίτημα...") as status:
             
-            # ΒΗΜΑ Α: Live Search στο Internet
             st.write("🔍 Αναζήτηση πρόσφατης νομοθεσίας (Tavily)...")
             try:
                 search_results = tavily.search(query=user_query, search_depth="advanced", max_results=3)
@@ -138,7 +128,6 @@ if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ"):
             except:
                 context_web = "Δεν βρέθηκαν live δεδομένα."
                 
-            # ΒΗΜΑ Β: Σύνθεση της "Σούπερ Ερώτησης" (Prompt Engineering)
             st.write("🧠 Ανάλυση δεδομένων και σύνταξη πορίσματος...")
             try:
                 enriched_prompt = f"""
@@ -152,7 +141,6 @@ if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ"):
                 {user_query}
                 """
                 
-                # ΒΗΜΑ Γ: Κλήση στην OpenAI
                 response = client.chat.completions.create(
                     model=selected_model,
                     messages=[
@@ -164,7 +152,6 @@ if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ"):
                 final_answer = response.choices[0].message.content
                 status.update(label="✅ Η ανάλυση ολοκληρώθηκε!", state="complete", expanded=False)
 
-                # Εμφάνιση του αποτελέσματος στην οθόνη
                 st.markdown('<div class="report-container">', unsafe_allow_html=True)
                 st.subheader("📝 ΠΟΡΙΣΜΑ ΑΝΑΛΥΣΗΣ")
                 st.markdown(final_answer)
