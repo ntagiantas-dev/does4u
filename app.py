@@ -136,85 +136,118 @@ if uploaded_conv:
 st.write("---")
 
 # --- ΜΗΧΑΝΗ PREMIUM ΑΝΑΛΥΣΗΣ (CORE LOGIC) ---
-user_query = st.text_input("💬 Θέστε το ερώτημά σας προς έρευνα (π.χ. Αλλαγές στο ΦΕΚ τουρισμού):")
+st.write("---")
 
-# Επεξεργασία του PDF αν ο χρήστης επιλέξει να ανεβάσει
+# --- ΝΕΑ ΣΥΜΜΕΤΡΙΚΗ ΔΙΑΤΑΞΗ (INPUTS) ---
+col_in1, col_in2 = st.columns(2)
+
+with col_in1:
+    user_query = st.text_input("💬 Θέστε το ερώτημά σας προς έρευνα (π.χ. Αλλαγές στο ΦΕΚ τουρισμού):", key="analysis_query")
+
+with col_in2:
+    # Επιλογέας Format για τη μετατροπή δίπλα από το ερώτημα
+    output_format = st.selectbox("📂 Διαλέξτε format για τη μετατροπή:", ["Docx", "PDF", "Excel", "TXT"], key="conv_format")
+
+
+# Επεξεργασία του PDF αν ο χρήστης επιλέξει να ανεβάσει (Η δική σου λειτουργία)
 pdf_text = ""
 if uploaded_file:
-    pdf_reader = PyPDF2.PdfReader(uploaded_file)
-    pdf_text = "".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
-    st.toast("✅ Το αρχείο PDF ενσωματώθηκε στην ανάλυση!")
+    try:
+        pdf_reader = PyPDF2.PdfReader(uploaded_file)
+        pdf_text = "".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
+        st.toast("✅ Το αρχείο PDF ενσωματώθηκε στην ανάλυση!")
+    except:
+        pass
 
-# Εκκίνηση της Βαθιάς Έρευνας
-if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ"):
-    # 1. Έλεγχος δικαιωμάτων
-    if not st.session_state.get('unlock_analysis', False):
-        st.error("🔒 Η Premium Ανάλυση & Live Έρευνα είναι κλειδωμένη. Απαιτείται Premium Promo Code.")
-    
-    # 2. Έλεγχος εισαγωγής ερωτήματος
-    elif not user_query:
-        st.warning("⚠️ Παρακαλώ πληκτρολογήστε το ερώτημα ή το θέμα που σας ενδιαφέρει.")
+st.write("") # Μικρό κενό ανάμεσα στα inputs και στα κουμπιά
+
+# --- ΝΕΑ ΣΥΜΜΕΤΡΙΚΗ ΔΙΑΤΑΞΗ (ΚΟΥΜΠΙΑ ΕΝΑΡΞΗΣ) ---
+col_btn1, col_btn2 = st.columns(2)
+
+# --- ΑΡΙΣΤΕΡΟ ΚΟΥΜΠΙ: ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ ---
+with col_btn1:
+    if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ", use_container_width=True):
+        # 1. Έλεγχος δικαιωμάτων
+        if not st.session_state.get('unlock_analysis', False):
+            st.error("🔒 Η Premium Ανάλυση & Live Έρευνα είναι κλειδωμένη. Απαιτείται Premium Promo Code.")
         
-    else:
-        # Η μηχανή εκτελείται κανονικά (είτε με PDF είτε αυτόνομα!)
-        with st.status("⚖️ Η Does4U επεξεργάζεται και ερευνά το αίτημα...") as status:
+        # 2. Έλεγχος εισαγωγής ερωτήματος
+        elif not user_query:
+            st.warning("⚠️ Παρακαλώ πληκτρολογήστε το ερώτημα ή το θέμα που σας ενδιαφέρει.")
             
-            st.write("🔍 Ζωντανή αναζήτηση δεδομένων στο διαδίκτυο (Tavily)...")
-            urls_found = []
-            try:
-                search_results = tavily.search(query=user_query, search_depth="advanced", max_results=3)
-                context_web = ""
-                for res in search_results['results']:
-                    context_web += f"\nΠΗΓΗ: {res['url']}\nΠΕΡΙΕΧΟΜΕΝΟ: {res['content']}\n"
-                    urls_found.append(res['url'])
-            except:
-                context_web = "Δεν βρέθηκαν live δεδομένα κατά την αναζήτηση."
-                
-            st.write("🧠 Διασταύρωση πηγών, ανάλυση και σύνταξη στρατηγικού πορίσματος...")
-            try:
-                # Δυναμικό Context: Προσαρμόζεται αν υπάρχει έγγραφο ή όχι
-                document_context = pdf_text[:8000] if pdf_text else "Δεν έχει ανεβαστεί αρχείο PDF από τον χρήστη. Βασίσου αποκλειστικά στη live έρευνα του διαδικτύου."
-                
-                enriched_prompt = f"""
-                ΚΕΙΜΕΝΟ PDF ΠΕΛΑΤΗ:
-                {document_context} 
+        else:
+            # Η μηχανή σου εκτελείται κανονικά
+            with st.status("⚖️ Η Does4U επεξεργάζεται και ερευνά το αίτημα...") as status:
+                st.write("🔍 Ζωντανή αναζήτηση δεδομένων στο διαδίκτυο (Tavily)...")
+                urls_found = []
+                try:
+                    search_results = tavily.search(query=user_query, search_depth="advanced", max_results=3)
+                    context_web = ""
+                    for res in search_results['results']:
+                        context_web += f"\nΠΗΓΗ: {res['url']}\nΠΕΡΙΕΧΟΜΕΝΟ: {res['content']}\n"
+                        urls_found.append(res['url'])
+                except:
+                    context_web = "Δεν βρέθηκαν live δεδομένα κατά την αναζήτηση."
+                    
+                st.write("🧠 Διασταύρωση πηγών, ανάλυση και σύνταξη στρατηγικού πορίσματος...")
+                try:
+                    # Δυναμικό Context
+                    document_context = pdf_text[:8000] if pdf_text else "Δεν έχει ανεβαστεί αρχείο PDF από τον χρήστη. Βασίσου αποκλειστικά στη live έρευνα του διαδικτύου."
+                    
+                    enriched_prompt = f"""
+                    ΚΕΙΜΕΝΟ PDF ΠΕΛΑΤΗ:
+                    {document_context} 
 
-                ΠΡΟΣΦΑΤΕΣ ΕΞΕΛΙΞΕΙΣ ΑΠΟ ΤΟ ΔΙΑΔΙΚΤΥΟ (TAVILY):
-                {context_web}
+                    ΠΡΟΣΦΑΤΕΣ ΕΞΕΛΙΞΕΙΣ ΑΠΟ ΤΟ ΔΙΑΔΙΚΤΥΟ (TAVILY):
+                    {context_web}
 
-                ΕΡΩΤΗΣΗ ΠΕΛΑΤΗ:
-                {user_query}
-                """
-                
-                # Κλήση του επιλεγμένου μοντέλου OpenAI
-                response = client.chat.completions.create(
-                    model=selected_model,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": enriched_prompt}
-                    ]
-                )
-                
-                final_answer = response.choices[0].message.content
-                status.update(label="✅ Η ανάλυση ολοκληρώθηκε!", state="complete", expanded=False)
+                    ΕΡΩΤΗΣΗ ΠΕΛΑΤΗ:
+                    {user_query}
+                    """
+                    
+                    # Κλήση του επιλεγμένου μοντέλου OpenAI
+                    response = client.chat.completions.create(
+                        model=selected_model,
+                        messages=[
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": enriched_prompt}
+                        ]
+                    )
+                    
+                    final_answer = response.choices[0].message.content
+                    status.update(label="✅ Η ανάλυση ολοκληρώθηκε!", state="complete", expanded=False)
 
-                # Εμφάνιση του premium τελικού πορίσματος στην οθόνη του πελάτη
-                st.markdown('<div class="report-container">', unsafe_allow_html=True)
-                st.subheader("📝 ΠΟΡΙΣΜΑ ΣΤΡΑΤΗΓΙΚΗΣ ΑΝΑΛΥΣΗΣ")
-                st.markdown(final_answer)
-                
-                # ΕΜΦΑΝΙΣΗ CLICKABLE ΠΗΓΩΝ ΓΙΑ ΔΙΑΦΑΝΕΙΑ ΚΑΙ CREDIT ΥΠΗΡΕΣΙΑΣ
-                if urls_found:
-                    st.write("---")
-                    st.markdown("### 🔗 Πηγές που εντοπίστηκαν και χρησιμοποιήθηκαν:")
-                    for idx_url, url in enumerate(urls_found):
-                        st.markdown(f"**[{idx_url + 1}]** 🌐 [{url}]({url})")
-                        
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.error(f"❌ Σφάλμα κατά τη σύνταξη της απάντησης: {e}")
+                    # Εμφάνιση του premium τελικού πορίσματος
+                    st.markdown('<div class="report-container">', unsafe_allow_html=True)
+                    st.subheader("📝 ΠΟΡΙΣΜΑ ΣΤΡΑΤΗΓΙΚΗΣ ΑΝΑΛΥΣΗΣ")
+                    st.markdown(final_answer)
+                    
+                    # Εμφάνιση πηγών
+                    if urls_found:
+                        st.write("---")
+                        st.markdown("### 🔗 Πηγές που εντοπίστηκαν και χρησιμοποιήθηκαν:")
+                        for idx_url, url in enumerate(urls_found):
+                            st.markdown(f"**[{idx_url + 1}]** 🌐 [{url}]({url})")
+                            
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                except Exception as e:
+                    st.error(f"❌ Σφάλμα κατά τη σύνταξη της απάντησης: {e}")
+
+# --- ΔΕΞΙ ΚΟΥΜΠΙ: ΕΝΑΡΞΗ ΜΕΤΑΤΡΟΠΗΣ ---
+with col_btn2:
+    if st.button("🔄 ΕΝΑΡΞΗ ΜΕΤΑΤΡΟΠΗΣ", use_container_width=True):
+        # 1. Έλεγχος δικαιωμάτων για τη Μετατροπή
+        if not st.session_state.get('unlock_converter', False):
+            st.error("🔒 Η μετατροπή εγγράφων είναι κλειδωμένη. Εισάγετε κωδικό πρόσβασης στο Sidebar.")
+        # 2. Έλεγχος αν ανέβηκε αρχείο στο Convert Box
+        elif not uploaded_conv:
+            st.warning("⚠️ Παρακαλώ ανεβάστε πρώτα ένα αρχείο στο Convert Box παραπάνω.")
+        else:
+            # Εκτέλεση του Converter UI που ήδη έχεις έτοιμο
+            with st.spinner(f"⏳ Γίνεται μετατροπή σε {output_format}..."):
+                show_converter_ui()
 
 # --- 7. FOOTER (ΤΟ ΚΑΤΩ ΜΕΡΟΣ) ---
 st.write("---")
-st.caption("Does4U Intelligence Platform v2.0 | Secured Connection | All Rights Reserved 2026")
+st.caption("© 2026 Does4U. All rights reserved.")
