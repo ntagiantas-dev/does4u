@@ -47,15 +47,30 @@ def read_txt(file):
 # ==========================================
 
 def create_pdf(text_content):
-    """Μετατροπή σε PDF με υποστήριξη Ελληνικών"""
+    """Μετατροπή σε PDF με αυτόματο κατέβασμα και υποστήριξη Ελληνικών"""
+    import os
+    import urllib.request
+    
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     
+    font_name = 'DejaVuSans'
+    font_file = 'DejaVuSans.ttf'
+    
+    # Αν η γραμματοσειρά δεν υπάρχει τοπικά, τη κατεβάζουμε αυτόματα από το GitHub
+    if not os.path.exists(font_file):
+        url = "https://github.com/mcmaster-btech/mcmaster-btech.github.io/raw/master/fonts/DejaVuSans.ttf"
+        try:
+            urllib.request.urlretrieve(url, font_file)
+        except Exception as e:
+            pass
+
+    # Προσπάθεια καταχώρησης της γραμματοσειράς
     try:
-        pdfmetrics.registerFont(TTFont('DejaVuSans', 'DejaVuSans.ttf'))
+        pdfmetrics.registerFont(TTFont('DejaVuSans', font_file))
         font_name = 'DejaVuSans'
     except:
-        font_name = 'Helvetica'
+        font_name = 'Helvetica' # Fallback αν αποτύχει τελείως
 
     styles = getSampleStyleSheet()
     greek_style = ParagraphStyle('GStyle', parent=styles['Normal'], fontName=font_name, fontSize=11, leading=16)
