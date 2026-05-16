@@ -10,7 +10,7 @@ def load_codes():
         try:
             with open(CODES_FILE, "r") as f:
                 return json.load(f)
-        except:
+        except Exception:
             return []
     return []
 

@@ -10,6 +10,8 @@ from openai import OpenAI
 from tavily import TavilyClient
 from datetime import datetime
 from dotenv import load_dotenv
+from dash import show_promo_dashboard
+
 
 # Φόρτωση κλειδιών
 load_dotenv()
@@ -189,100 +191,99 @@ def handle_publish(draft_data, index):
     time.sleep(1)
     st.rerun()
 # ==========================================================
-# SECTION 5: ΕΜΦΑΝΙΣΗ & ΧΕΙΡΙΣΜΟΣ (UI DISPLAY)
+# SECTION 5: ΠΛΕΥΡΙΚΟ ΜΕΝΟΥ (SIDEBAR NAVIGATION)
 # ==========================================================
-# --- SECTION 5: SIDEBAR & UI CONTROL ---
 with st.sidebar:
-    st.image("does4u_logo.png", caption="Does4U Admin v2.0") # Βάλε το logo σου αν έχεις link
-    st.title("🚀 Κέντρο Παραγωγής")
+    st.image("does4u_logo.png", caption="Does4U Admin v2.0")
+    st.title("🏛️ Στρατηγείο Διαχείρισης")
     st.divider()
-
-    # 1. Επιλογή Κατηγορίας 
-    category = st.selectbox("Επίλεξε Κατηγορία", [
-        "ΦΕΚ", 
-        "Βουλή", 
-        "Επιχειρηματικότητα"
-    ])
-
-    # 2. Εισαγωγή Θέματος (Target Point)
-    target_point = st.text_area("Τι ψάχνουμε; (Target Point)", 
-                                placeholder="π.χ. Νέες επιδοτήσεις για τουρισμό 2026",
-                                help="Γράψε το συγκεκριμένο θέμα που θέλεις να αναλύσει η Does4U.")
-
-    st.divider()
-
-    # 3. Το Μαγικό Κουμπί
-    if st.button("✨ ΔΗΜΙΟΥΡΓΙΑ ΑΡΘΡΟΥ", use_container_width=True):
-        if not target_point:
-            st.warning("⚠️ Πρώτα γράψε ένα θέμα στο παραπάνω πλαίσιο!")
-        else:
-            # Κλήση της συνάρτησης από το Section 3
-            article_data = generate_strategic_article(category, target_point)
-            
-            if article_data:
-                # Αποθήκευση στο Session State για να μην χάνεται στο reload
-                st.session_state['latest_article'] = article_data
-                save_drafts_permanently([article_data])
-                st.success("✅ Το άρθρο ολοκληρώθηκε!")
-
-# --- DISPLAY AREA (Κύρια Οθόνη) ---
-if 'latest_article' in st.session_state:
-    art = st.session_state['latest_article']
-    st.divider()
-    st.header(art['title'])
     
-    # 1. ΕΜΦΑΝΙΣΗ ΚΕΙΜΕΝΟΥ
-    st.markdown(art['content'])
+    # ΕΔΩ ΕΙΝΑΙ ΤΟ ΜΕΝΟΥ ΠΟΥ ΑΛΛΑΖΕΙ ΤΙΣ ΣΕΛΙΔΕΣ!
+    admin_page = st.radio(
+        "Πλοήγηση", 
+        ["📝 Παραγωγή Blog", "🔑 Διαχείριση Promo Codes"]
+    )
+    st.divider()
+    # ==========================================================
+# SECTION 6: ΛΟΓΙΚΗ ΕΜΦΑΝΙΣΗΣ ΑΝΑ ΣΕΛΙΔΑ
+# ==========================================================
+
+# --- ΚΑΡΤΕΛΑ 1: ΠΑΡΑΓΩΓΗ BLOG ---
+if admin_page == "📝 Παραγωγή Blog":
     
-    # 2. ΕΜΦΑΝΙΣΗ ΠΗΓΩΝ (Links)
-    if art.get('sources'):
-        st.subheader("🔗 Πηγές & Αναφορές")
-        for src in art['sources']:
-            st.write(f"• {src}")
+    # Ξαναχτίζουμε τα πεδία του Blog στο sidebar μόνο για αυτή τη σελίδα
+    with st.sidebar:
+        st.subheader("🚀 Κέντρο Παραγωγής Blog")
+        category = st.selectbox("Επίλεξε Κατηγορία", ["ΦΕΚ", "Βουλή", "Επιχειρηματικότητα"])
+        target_point = st.text_area(
+            "Τι ψάχνουμε; (Target Point)", 
+            placeholder="π.χ. Νέες επιδοτήσεις για τουρισμό 2026"
+        )
+        
+        if st.button("✨ ΔΗΜΙΟΥΡΓΙΑ ΑΡΘΡΟΥ", use_container_width=True):
+            if not target_point:
+                st.warning("⚠️ Πρώτα γράψε ένα θέμα στο παραπάνω πλαίσιο!")
+            else:
+                article_data = generate_strategic_article(category, target_point)
+                if article_data:
+                    st.session_state['latest_article'] = article_data
+                    save_drafts_permanently([article_data])
+                    st.success("✅ Το άρθρο ολοκληρώθηκε!")
 
-    # 3. ΕΜΦΑΝΙΣΗ TEASER (Σε δικό του πλαίσιο για να μην μπερδεύεται)
-    st.subheader("📱 Teaser για Social Media")
-    st.info(art.get('teaser', 'Δείτε το πλήρες άρθρο στο blog μας!'))
+    # --- DISPLAY AREA (Κύρια Οθόνη Blog) ---
+    if 'latest_article' in st.session_state:
+        art = st.session_state['latest_article']
+        st.divider()
+        st.header(art['title'])
+        st.markdown(art['content'])
+        
+        if art.get('sources'):
+            st.subheader("🔗 Πηγές & Αναφορές")
+            for src in art['sources']:
+                st.write(f"• {src}")
 
-    # 4. ΧΕΙΡΟΚΙΝΗΤΗ ΑΠΟΘΗΚΕΥΣΗ (Για σιγουριά)
-    if st.button("📥 Αποθήκευση στα Πρόχειρα (Drafts)"):
-        save_drafts_permanently([art])
-        st.success("Το άρθρο σώθηκε στη λίστα παρακάτω!")
+        st.subheader("📱 Teaser για Social Media")
+        st.info(art.get('teaser', 'Δείτε το πλήρες άρθρο στο blog μας!'))
 
-# ==========================================
-# SECTION 6: ΣΤΡΑΤΗΓΕΙΟ ΔΙΑΧΕΙΡΙΣΗΣ (Εδώ είναι η Δημοσίευση)
-# ==========================================
-st.divider()
-st.subheader("📝 Πρόχειρα Άρθρα προς Επιμέλεια")
+        if st.button("📥 Αποθήκευση στα Πρόχειρα (Drafts)"):
+            save_drafts_permanently([art])
+            st.success("Το άρθρο σώθηκε στη λίστα παρακάτω!")
 
-# Φορτώνουμε όλα τα σωσμένα drafts
-saved_drafts = load_permanent_drafts()
+    st.divider()
+    st.subheader("📝 Πρόχειρα Άρθρα προς Επιμέλεια")
+    saved_drafts = load_permanent_drafts()
 
-if saved_drafts:
-    for idx, d in enumerate(saved_drafts):
-        # Δημιουργούμε ένα κουτί για κάθε άρθρο
-        with st.expander(f"📂 {d.get('date', '---')} - {d.get('title', 'Χωρίς Τίτλο')}"):
-            st.markdown(d['content'])
-            if d.get('sources'):
-                st.write("**🔗 Πηγές & Σύνδεσμοι:**")
-                sources_data = d['sources']
-                if isinstance(sources_data, list):
-                    for s in sources_data:
-                        st.write(f"• {s}")
-                else:
-                    st.write(sources_data)
-            
-            # ΤΟ ΚΟΥΜΠΙ ΠΟΥ ΕΨΑΧΝΕΣ ΕΙΝΑΙ ΕΔΩ!
-            if st.button(f"🚀 ΔΗΜΟΣΙΕΥΣΗ ΣΤΟ BLOG", key=f"pub_{idx}"):
-                handle_publish(d, idx)
-                st.success("ΤΟ ΑΡΘΡΟ ΑΝΕΒΗΚΕ ΟΡΙΣΤΙΚΑ!")
-                st.rerun()
+    if saved_drafts:
+        for idx, d in enumerate(saved_drafts):
+            with st.expander(f"📂 {d.get('date', '---')} - {d.get('title', 'Χωρίς Τίτλο')}"):
+                st.markdown(d['content'])
+                
+                # Εμφάνιση Clickable Links για τις πηγές
+                if d.get('sources'):
+                    st.write("**🔗 Πηγές & Σύνδεσμοι:**")
+                    sources_data = d['sources']
+                    if isinstance(sources_data, list):
+                        for s in sources_data:
+                            if str(s).startswith("http"):
+                                st.markdown(f"• 🌐 [{s}]({s})")
+                            else:
+                                st.markdown(f"• 📄 {s}")
+                    else:
+                        st.write(sources_data)
+                
+                if st.button(f"🚀 ΔΗΜΟΣΙΕΥΣΗ ΣΤΟ BLOG", key=f"pub_{idx}"):
+                    handle_publish(d, idx)
+                    st.success("ΤΟ ΑΡΘΡΟ ΑΝΕΒΗΚΕ ΟΡΙΣΤΙΚΑ!")
+                    st.rerun()
 
-    if st.button("🗑️ ΚΑΘΑΡΙΣΜΟΣ ΟΛΩΝ ΤΩΝ DRAFTS"):
-        with open(DRAFTS_FILE, "w", encoding="utf-8") as f:
-            json.dump([], f)
-        st.rerun()
-else:
-    st.info("Δεν υπάρχουν άρθρα στη λίστα αναμονής.")
+        if st.button("🗑️ ΚΑΘΑΡΙΣΜΟΣ ΟΛΩΝ ΤΩΝ DRAFTS"):
+            with open(DRAFTS_FILE, "w", encoding="utf-8") as f:
+                json.dump([], f)
+            st.rerun()
+    else:
+        st.info("Δεν υπάρχουν άρθρα στη λίστα αναμονής.")
 
-# --- ΤΕΛΟΣ ΑΡΧΕΙΟΥ ADMIN.PY ---
+# --- ΚΑΡΤΕΛΑ 2: ΔΙΑΧΕΙΡΙΣΗ PROMO CODES ---
+elif admin_page == "🔑 Διαχείριση Promo Codes":
+    # Η κύρια οθόνη αδειάζει και καλεί το dashboard από το dash.py
+    show_promo_dashboard()
