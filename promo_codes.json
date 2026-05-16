@@ -1,0 +1,10 @@
+{
+  "CONV26": {
+    "type": "converter",
+    "description": "Κωδικός για απλές μετατροπές εγγράφων"
+  },
+  "PREMIUM26": {
+    "type": "analysis",
+    "description": "Premium πρόσβαση σε Live Έρευνα & Νομική Ανάλυση"
+  }
+}
