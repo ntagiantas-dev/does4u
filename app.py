@@ -213,7 +213,7 @@ if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ"):
                 st.markdown('</div>', unsafe_allow_html=True)
                 
             except Exception as e:
-                st.error(f"❌ Σφάλμα κατά τη σύνταξη της απάντησης: {e}")
+                st.error(f"❌ Σφάλμα κατά τη σύνταξη της απάντησης: {e}")git 
 
 # --- 7. FOOTER (ΤΟ ΚΑΤΩ ΜΕΡΟΣ) ---
 st.write("---")
