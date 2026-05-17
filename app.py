@@ -246,7 +246,7 @@ with col_btn2:
         else:
             # Εκτέλεση του Converter UI που ήδη έχεις έτοιμο
             with st.spinner(f"⏳ Γίνεται μετατροπή σε {output_format}..."):
-                show_converter_ui(key_suffix="main_app")
+                show_converter_ui()
 
 # --- 7. FOOTER (ΤΟ ΚΑΤΩ ΜΕΡΟΣ) ---
 st.write("---")
