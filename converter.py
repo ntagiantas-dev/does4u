@@ -10,7 +10,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib import colors
 
 # ==========================================
-# 🛠️ ΜΗΧΑΝΙΣΜΟΙ ΔΙΑΒΑΣΜΑΤΟΣ (ΑΠΟ ΤΟ ΑΡΧΕΙΟ ΣΟΥ)
+# 🛠️ ΜΗΧΑΝΙΣΜΟΙ ΔΙΑΒΑΣΜΑΤΟΣ
 # ==========================================
 
 def read_pdf(file):
@@ -39,11 +39,10 @@ def read_txt(file):
         return file.read().decode("latin-1")
 
 # ==========================================
-# 📦 ΜΗΧΑΝΙΣΜΟΙ ΔΗΜΙΟΥΡΓΙΑΣ (ΓΙΑ ΤΟΝ ΠΕΛΑΤΗ)
+# 📦 ΜΗΧΑΝΙΣΜΟΙ ΔΗΜΙΟΥΡΓΙΑΣ
 # ==========================================
 
 def create_pdf(text_content):
-    """Μετατροπή σε PDF με αυτόματο κατέβασμα και υποστήριξη Ελληνικών"""
     import os
     import urllib.request
     
@@ -53,7 +52,6 @@ def create_pdf(text_content):
     font_name = 'DejaVuSans'
     font_file = 'DejaVuSans.ttf'
     
-    # Αν η γραμματοσειρά δεν υπάρχει τοπικά, τη κατεβάζουμε αυτόματα από το GitHub
     if not os.path.exists(font_file):
         url = "https://github.com/mcmaster-btech/mcmaster-btech.github.io/raw/master/fonts/DejaVuSans.ttf"
         try:
@@ -61,12 +59,11 @@ def create_pdf(text_content):
         except Exception as e:
             pass
 
-    # Προσπάθεια καταχώρησης της γραμματοσειράς
     try:
         pdfmetrics.registerFont(TTFont('DejaVuSans', font_file))
         font_name = 'DejaVuSans'
     except:
-        font_name = 'Helvetica' # Fallback αν αποτύχει τελείως
+        font_name = 'Helvetica'
 
     styles = getSampleStyleSheet()
     greek_style = ParagraphStyle('GStyle', parent=styles['Normal'], fontName=font_name, fontSize=11, leading=16)
@@ -83,7 +80,6 @@ def create_pdf(text_content):
     return buffer.getvalue()
 
 def create_docx(text_content):
-    """Μετατροπή σε έγγραφο Word (.docx)"""
     doc = docx.Document()
     lines = text_content.split('\n')
     for line in lines:
@@ -98,11 +94,11 @@ def create_docx(text_content):
 # ==========================================
 # 🖥️ Η ΒΙΤΡΙΝΑ ΤΟΥ ΜΕΤΑΤΡΟΠΕΑ (UI)
 # ==========================================
-def show_converter_ui():
+# Εδώ προσθέτουμε το key_id για να δέχεται την παράμετρο από το app.py!
+def show_converter_ui(key_id="default_converter"):
     st.write("---")
     st.markdown("### 🔄 Πολυμορφικός Μετατροπέας Εγγράφων")
     
-    # Πιάνουμε το αρχείο από το 'conv_up' του app.py
     uploaded_file = st.session_state.get('conv_up', None)
     
     if uploaded_file is not None:
@@ -111,7 +107,6 @@ def show_converter_ui():
         
         st.success(f"📥 Το αρχείο **{file_name}** φορτώθηκε επιτυχώς!")
         
-        # 1. Πρώτα διαβάζουμε το περιεχόμενο του αρχείου που ανέβηκε
         raw_text = ""
         if file_type == "pdf":
             raw_text = read_pdf(uploaded_file)
@@ -123,10 +118,9 @@ def show_converter_ui():
             st.warning("⚠️ Για φωτογραφίες (.jpg, .png) απαιτείται σύνδεση με OCR.")
             return
 
-        # 2. ΡΩΤΑΜΕ ΤΟΝ ΧΡΗΣΤΗ: Τι μετατροπή θέλει;
         st.markdown("#### 🎯 Επιλέξτε τη μορφή του τελικού εγγράφου:")
         
-        # Η λίστα με τις διαθέσιμες μετατροπές (Με 100% σταθερό, μοναδικό key)
+        # Το selectbox χρησιμοποιεί το key_id που έρχεται από το app.py
         conversion_target = st.selectbox(
             "Διαθέσιμες Μετατροπές:",
             [
@@ -135,10 +129,9 @@ def show_converter_ui():
                 "Μετατροπή σε Έγγραφο PDF (.pdf)",
                 "Μετατροπή σε Απλό Κείμενο (.txt)"
             ],
-            key="selectbox_converter_final_fixed_stable_v4"
+            key=f"selectbox_{key_id}"
         )
         
-        # 3. Ετοιμάζουμε το αρχείο ανάλογα με την επιλογή του
         if conversion_target == "Μετατροπή σε Αρχείο Word (.docx)":
             docx_bytes = create_docx(raw_text)
             st.download_button(
@@ -147,7 +140,7 @@ def show_converter_ui():
                 file_name="does4u_converted.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True,
-                key="download_btn_docx_final"
+                key=f"btn_docx_{key_id}"
             )
                 
         elif conversion_target == "Μετατροπή σε Έγγραφο PDF (.pdf)":
@@ -158,7 +151,7 @@ def show_converter_ui():
                 file_name="does4u_converted.pdf",
                 mime="application/pdf",
                 use_container_width=True,
-                key="download_btn_pdf_final"
+                key=f"btn_pdf_{key_id}"
             )
                 
         elif conversion_target == "Μετατροπή σε Απλό Κείμενο (.txt)":
@@ -168,7 +161,7 @@ def show_converter_ui():
                 file_name="does4u_converted.txt",
                 mime="text/plain",
                 use_container_width=True,
-                key="download_btn_txt_final"
+                key=f"btn_txt_{key_id}"
             )
             
     else:
