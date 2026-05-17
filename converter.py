@@ -102,8 +102,7 @@ def create_docx(text_content):
 # ==========================================
 # 🖥️ Η ΒΙΤΡΙΝΑ ΤΟΥ ΜΕΤΑΤΡΟΠΕΑ (UI)
 # ==========================================
-
-def show_converter_ui(key_suffix=""):
+def show_converter_ui():
     st.write("---")
     st.markdown("### 🔄 Πολυμορφικός Μετατροπέας Εγγράφων")
     
