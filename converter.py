@@ -140,7 +140,7 @@ def show_converter_ui():
                 "Μετατροπή σε Έγγραφο PDF (.pdf)",
                 "Μετατροπή σε Απλό Κείμενο (.txt)"
             ],
-            key=st.session_state["dynamic_selectbox_key"]
+            key="selectbox_converter_unique_fixed_id"
         )
         
         # 3. Ετοιμάζουμε το αρχείο ανάλογα με την επιλογή του
