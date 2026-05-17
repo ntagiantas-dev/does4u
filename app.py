@@ -1,6 +1,6 @@
-# =============================================================
-# ΑΡΧΕΙΟ: app.py (ΜΕΡΟΣ 1) ΕΙΣΑΓΩΓΕΣ, ΡΥΘΜΗΣΕΙΣ, SYSTEM PROMPT
-# =============================================================
+# ==============================================================================
+# ΕΝΟΤΗΤΑ 1: ΕΙΣΑΓΩΓΕΣ ΒΙΒΛΙΟΘΗΚΩΝ & ΜΟΝΤΟΥΛΩΝ
+# ==============================================================================
 import streamlit as st
 import requests
 import json
@@ -13,17 +13,20 @@ from tavily import TavilyClient
 from converter import show_converter_ui
 from dash import load_codes
 
-# Φόρτωση κωδικών από το promo_codes.json
+# ==============================================================================
+# ΕΝΟΤΗΤΑ 2: ΑΡΧΙΚΟΠΟΙΗΣΗ & ΡΥΘΜΙΣΕΙΣ ΕΦΑΡΜΟΓΗΣ (CONFIG & CSS)
+# ==============================================================================
+# Φόρτωση έγκυρων κωδικών από το promo_codes.json
 valid_codes = load_codes()
 
-# --- ΡΥΘΜΙΣΕΙΣ ΕΜΦΑΝΙΣΗΣ ---
+# Ρυθμίσεις εμφάνισης παραθύρου
 st.set_page_config(
     page_title="Does4U | Premium Legal AI", 
     page_icon="⚖️", 
     layout="wide"
 )
 
-# --- CSS (ΤΟ "ΜΑΚΙΓΙΑΖ" ΤΗΣ ΣΕΛΙΔΑΣ) ---
+# Εφαρμογή custom CSS για το design της πλατφόρμας
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { background-color: #f8f9fb; color: #002b5c; }
@@ -33,7 +36,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-#--- Tο μυαλό της Does4U (System Prompt) ---
+# ==============================================================================
+# ΕΝΟΤΗΤΑ 3: SYSTEM PROMPT & ΡΥΘΜΙΣΕΙΣ API KEYS / SESSION STATE
+# ==============================================================================
+# Το μυαλό της Does4U (Οδηγίες συμπεριφοράς του LLM)
 SYSTEM_PROMPT = """
 Είσαι η Does4U, η πιο εξελιγμένη Τεχνητή Νοημοσύνη Νομικής, Φορολογικής και Στρατηγικής Ανάλυσης στην Ελλάδα.
 Ο ρόλος σου είναι να αναλύεις ερωτήματα χρηστών με βάση:
@@ -46,23 +52,24 @@ SYSTEM_PROMPT = """
 🛠️ ΠΡΟΤΑΣΗ: Συγκεκριμένες, πρακτικές κινήσεις και επόμενα βήματα για τον χρήστη.
 """
 
-#--- Τα Κλειδιά (API Keys & Session) ---
+# Φόρτωση περιβάλλοντος και αρχικοποίηση AI Clients
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY")) 
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
-# Αρχικοποίηση "Μνήμης" (Session State)
+# Αρχικοποίηση μεταβλητών κατάστασης (Session State)
 if "unlock_converter" not in st.session_state:
     st.session_state.unlock_converter = False
 if "unlock_analysis" not in st.session_state:
     st.session_state.unlock_analysis = False
-# ==========================================================
-# ΑΡΧΕΙΟ: app.py (ΜΕΡΟΣ 2)
-# ==========================================================
+if "start_conversion" not in st.session_state:
+    st.session_state.start_conversion = False
 
-# --- SIDEBAR CONTROL & PROMO CODES ---
+# ==============================================================================
+# ΕΝΟΤΗΤΑ 4: ΠΛΕΥΡΙΚΗ ΜΠΑΡΑ (SIDEBAR - PROMO CODES & TIERS)
+# ==============================================================================
 with st.sidebar:
-    # a. Λογότυπο της πλατφόρμας
+    # Εμφάνιση Λογοτύπου
     try:
         st.image("does4u_logo.png", use_container_width=True)
     except:
@@ -70,7 +77,7 @@ with st.sidebar:
     
     st.write("---")
     
-    # b. Έξυπνο Σύστημα Ελέγχου Promo Codes
+    # Διαχείριση Κωδικών Πρόσβασης
     st.subheader("🎟️ Premium Πρόσβαση")
     promo_input = st.text_input("Εισάγετε κωδικό...", placeholder="π.χ. PREMIUM26", key="promo_code")
     
@@ -78,16 +85,15 @@ with st.sidebar:
         code_upper = promo_input.upper().strip()
         
         if code_upper in valid_codes:
-            # Ανάκτηση του τύπου του κωδικού από το promo_codes.json
             code_type = valid_codes[code_upper].get("type", "converter")
             
             if code_type == "analysis":
                 st.session_state.unlock_analysis = True
-                st.session_state.unlock_converter = True  # Ο μεγάλος κωδικός ξεκλειδώνει αυτόματα και τις μετατροπές
+                st.session_state.unlock_converter = True
                 st.success("🚀 Premium Κωδικός Ανάλυσης Ενεργός!")
             else:
                 st.session_state.unlock_converter = True
-                st.session_state.unlock_analysis = False  # Παραμένει κλειδωμένη η live έρευνα
+                st.session_state.unlock_analysis = False
                 st.success("🔄 Κωδικός Μετατροπών (Convert) Ενεργός!")
                 
             time.sleep(1)
@@ -97,7 +103,7 @@ with st.sidebar:
     
     st.write("---")
     
-    # c. Επιλογή Επιπέδου Νοημοσύνης (LLM Model Map)
+    # Επιλογή Μοντέλου Νοημοσύνης (LLM Mapping)
     st.subheader("📦 Επιλογή Επιπέδου Νοημοσύνης")
     package = st.radio("Διαθέσιμα Tiers:", ["1. Έμπειρος Αναλυτής", "2. Στρατηγικός Εταίρος", "3. OS-1 Neural"])
     
@@ -107,14 +113,14 @@ with st.sidebar:
         "3. OS-1 Neural": "gpt-4-turbo"
     }
     selected_model = model_map[package]
-# ==========================================================
-# ΑΡΧΕΙΟ: app.py (ΜΕΡΟΣ 3)
-# ==========================================================
 
-# --- ΚΥΡΙΑ ΟΘΟΝΗ (MAIN UI) ---
+# ==============================================================================
+# ΕΝΟΤΗΤΑ 5: ΚΥΡΙΟ UI - ΚΟΥΤΙΑ ΑΝΕΒΑΣΜΑΤΟΣ (ANALYSIS & CONVERT BOX)
+# ==============================================================================
+# Κεντρικός Τίτλος
 st.markdown('<div class="main-header"><h1>ΕΞΕΙΔΙΚΕΥΜΕΝΗ ΠΟΛΥΜΟΡΦΙΚΗ ΑΝΑΛΥΣΗ</h1></div>', unsafe_allow_html=True)
 
-# Διαχωρισμός της οθόνης στα δύο κουτιά (Analysis & Convert)
+# Δημιουργία δύο στηλών για το ανέβασμα αρχείων
 col1, col2 = st.columns(2)
 
 with col1:
@@ -123,33 +129,29 @@ with col1:
 
 with col2:
     st.subheader("🔄 Convert Box")
-    uploaded_conv = st.file_uploader("Ανέβασμα για Μετατροπή (PDF, JPG, κλπ)", type=["pdf", "txt", "docx", "png", "jpg"], key="conv_up")
+    uploaded_conv = st.file_uploader("Ανέβασμα για Μετατροπή (PDF, TXT, DOCX)", type=["pdf", "txt", "docx"], key="conv_up")
 
-# Χειρισμός του Convert Box (Εργαλείο Καθημερινότητας)
+# Έλεγχος και ενημέρωση κατάστασης του Convert Box
 if uploaded_conv:
     if st.session_state.get('unlock_converter', False):
-        st.success("✅ Υπηρεσία Μετατροπής Ενεργή")
-        show_converter_ui() 
+        st.success("✅ Το αρχείο είναι έτοιμο στο Convert Box. Πιέστε 'ΕΝΑΡΞΗ ΜΕΤΑΤΡΟΠΗΣ' παρακάτω.")
     else:
         st.warning("🔒 Η μετατροπή εγγράφων είναι Premium υπηρεσία. Εισάγετε κωδικό πρόσβασης στο Sidebar.")
 
 st.write("---")
 
-# --- ΜΗΧΑΝΗ PREMIUM ΑΝΑΛΥΣΗΣ (CORE LOGIC) ---
-st.write("---")
-
-# --- ΝΕΑ ΣΥΜΜΕΤΡΙΚΗ ΔΙΑΤΑΞΗ (INPUTS) ---
+# ==============================================================================
+# ΕΝΟΤΗΤΑ 6: ΠΕΔΙΑ ΕΙΣΑΓΩΓΗΣ ΧΡΗΣΤΗ (INPUT FIELDS & FORMAT)
+# ==============================================================================
 col_in1, col_in2 = st.columns(2)
 
 with col_in1:
     user_query = st.text_input("💬 Θέστε το ερώτημά σας προς έρευνα (π.χ. Αλλαγές στο ΦΕΚ τουρισμού):", key="analysis_query")
 
 with col_in2:
-    # Επιλογέας Format για τη μετατροπή δίπλα από το ερώτημα
-    output_format = st.selectbox("📂 Διαλέξτε format για τη μετατροπή:", ["Docx", "PDF", "Excel", "TXT"], key="conv_format")
+    output_format = st.selectbox("📂 Διαλέξτε format για τη μετατροπή:", ["Docx", "PDF", "TXT"], key="conv_format")
 
-
-# Επεξεργασία του PDF αν ο χρήστης επιλέξει να ανεβάσει (Η δική σου λειτουργία)
+# Εξαγωγή κειμένου από το PDF του Analysis Box αν υπάρχει
 pdf_text = ""
 if uploaded_file:
     try:
@@ -159,24 +161,21 @@ if uploaded_file:
     except:
         pass
 
-st.write("") # Μικρό κενό ανάμεσα στα inputs και στα κουμπιά
+st.write("") 
 
-# --- ΝΕΑ ΣΥΜΜΕΤΡΙΚΗ ΔΙΑΤΑΞΗ (ΚΟΥΜΠΙΑ ΕΝΑΡΞΗΣ) ---
+# ==============================================================================
+# ΕΝΟΤΗΤΑ 7: ΚΟΥΜΠΙΑ ΔΡΑΣΗΣ & ΕΚΤΕΛΕΣΗ ΜΗΧΑΝΩΝ (PROCESSORS)
+# ==============================================================================
 col_btn1, col_btn2 = st.columns(2)
 
-# --- ΑΡΙΣΤΕΡΟ ΚΟΥΜΠΙ: ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ ---
+# --- ΥΠΟ-ΕΝΟΤΗΤΑ 7.1: ΜΗΧΑΝΗ ΕΝΑΡΞΗΣ ΑΝΑΛΥΣΗΣ ---
 with col_btn1:
     if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ", use_container_width=True):
-        # 1. Έλεγχος δικαιωμάτων
         if not st.session_state.get('unlock_analysis', False):
             st.error("🔒 Η Premium Ανάλυση & Live Έρευνα είναι κλειδωμένη. Απαιτείται Premium Promo Code.")
-        
-        # 2. Έλεγχος εισαγωγής ερωτήματος
         elif not user_query:
             st.warning("⚠️ Παρακαλώ πληκτρολογήστε το ερώτημα ή το θέμα που σας ενδιαφέρει.")
-            
         else:
-            # Η μηχανή σου εκτελείται κανονικά
             with st.status("⚖️ Η Does4U επεξεργάζεται και ερευνά το αίτημα...") as status:
                 st.write("🔍 Ζωντανή αναζήτηση δεδομένων στο διαδίκτυο (Tavily)...")
                 urls_found = []
@@ -191,8 +190,7 @@ with col_btn1:
                     
                 st.write("🧠 Διασταύρωση πηγών, ανάλυση και σύνταξη στρατηγικού πορίσματος...")
                 try:
-                    # Δυναμικό Context
-                    document_context = pdf_text[:8000] if pdf_text else "Δεν έχει ανεβαστεί αρχείο PDF από τον χρήστη. Βασίσου αποκλειστικά στη live έρευνα του διαδικτύου."
+                    document_context = pdf_text[:8000] if pdf_text else "Δεν έχει ανεβαστεί αρχείο PDF από τον χρήστη."
                     
                     enriched_prompt = f"""
                     ΚΕΙΜΕΝΟ PDF ΠΕΛΑΤΗ:
@@ -205,7 +203,6 @@ with col_btn1:
                     {user_query}
                     """
                     
-                    # Κλήση του επιλεγμένου μοντέλου OpenAI
                     response = client.chat.completions.create(
                         model=selected_model,
                         messages=[
@@ -217,15 +214,13 @@ with col_btn1:
                     final_answer = response.choices[0].message.content
                     status.update(label="✅ Η ανάλυση ολοκληρώθηκε!", state="complete", expanded=False)
 
-                    # Εμφάνιση του premium τελικού πορίσματος
                     st.markdown('<div class="report-container">', unsafe_allow_html=True)
                     st.subheader("📝 ΠΟΡΙΣΜΑ ΣΤΡΑΤΗΓΙΚΗΣ ΑΝΑΛΥΣΗΣ")
                     st.markdown(final_answer)
                     
-                    # Εμφάνιση πηγών
                     if urls_found:
                         st.write("---")
-                        st.markdown("### 🔗 Πηγές που εντοπίστηκαν και χρησιμοποιήθηκαν:")
+                        st.markdown("### 🔗 Πηγές που εντοπίστηκαν:")
                         for idx_url, url in enumerate(urls_found):
                             st.markdown(f"**[{idx_url + 1}]** 🌐 [{url}]({url})")
                             
@@ -234,20 +229,15 @@ with col_btn1:
                 except Exception as e:
                     st.error(f"❌ Σφάλμα κατά τη σύνταξη της απάντησης: {e}")
 
-# --- ΔΕΞΙ ΚΟΥΜΠΙ: ΕΝΑΡΞΗ ΜΕΤΑΤΡΟΠΗΣ ---
+# --- ΥΠΟ-ΕΝΟΤΗΤΑ 7.2: ΜΗΧΑΝΗ ΕΝΑΡΞΗΣ ΜΕΤΑΤΡΟΠΗΣ ---
 with col_btn2:
     if st.button("🔄 ΕΝΑΡΞΗ ΜΕΤΑΤΡΟΠΗΣ", use_container_width=True):
-        # 1. Έλεγχος δικαιωμάτων για τη Μετατροπή
         if not st.session_state.get('unlock_converter', False):
             st.error("🔒 Η μετατροπή εγγράφων είναι κλειδωμένη. Εισάγετε κωδικό πρόσβασης στο Sidebar.")
-        # 2. Έλεγχος αν ανέβηκε αρχείο στο Convert Box
         elif not uploaded_conv:
             st.warning("⚠️ Παρακαλώ ανεβάστε πρώτα ένα αρχείο στο Convert Box παραπάνω.")
         else:
-            # Εκτέλεση του Converter UI που ήδη έχεις έτοιμο
-            with st.spinner(f"⏳ Γίνεται μετατροπή σε {output_format}..."):
-                show_converter_ui()
+            st.session_state.start_conversion = True
 
-# --- 7. FOOTER (ΤΟ ΚΑΤΩ ΜΕΡΟΣ) ---
-st.write("---")
-st.caption("© 2026 Does4U. All rights reserved.")
+# Ενεργοποίηση και σχεδίαση του Converter UI από
+show_converter_ui(key_id="main_app_converter")
