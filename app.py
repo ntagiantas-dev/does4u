@@ -1,4 +1,3 @@
-# ==============================================================================
 # ΕΝΟΤΗΤΑ 1: ΕΙΣΑΓΩΓΕΣ ΒΙΒΛΙΟΘΗΚΩΝ & ΜΟΝΤΟΥΛΩΝ
 # ==============================================================================
 import streamlit as st
@@ -88,7 +87,7 @@ with st.sidebar:
             # 🔓 ΠΑΡΑΚΑΜΨΗ: Ξεκλειδώνουμε και τα δύο για να σιγουρευτούμε ότι θα τρέξει η ανάλυση!
             st.session_state.unlock_analysis = True
             st.session_state.unlock_converter = True
-            st.success("🚀 Premium Πρόσβαση (Ανάλυση & Μετατροπή) Ενεργή!")
+            st.success("🚀 Premium Πρόσβαση (Ανάλυση &amp; Μετατροπή) Ενεργή!")
                 
             time.sleep(1)
             st.rerun()
@@ -134,13 +133,25 @@ if uploaded_conv:
 
 st.write("---")
 
+# ==============================================================================
+# ΕΝΟΤΗΤΑ 6: ΠΕΔΙΑ ΕΙΣΑΓΩΓΗΣ ΧΡΗΣΤΗ (ΕΠΑΝΑΦΟΡΑ ΕΝΟΤΗΤΑΣ ΠΟΥ ΛΕΙΠΕΙ)
+# ==============================================================================
+col_in1, col_in2 = st.columns(2)
+
+with col_in1:
+    user_query = st.text_input("💬 Θέστε το ερώτημά σας προς έρευνα (π.χ. Αλλαγές στο ΦΕΚ τουρισμού):", key="analysis_query")
+
+with col_in2:
+    output_format = st.selectbox("📂 Διαλέξτε format για τη μετατροπή:", ["Docx", "PDF", "TXT"], key="conv_format")
+
+st.write("") 
 
 # ==============================================================================
-# ΕΝΟΤΗΤΑ 6: ΚΟΥΜΠΙΑ ΔΡΑΣΗΣ & ΕΚΤΕΛΕΣΗ ΜΗΧΑΝΩΝ (PROCESSORS)
+# ΕΝΟΤΗΤΑ 7: ΚΟΥΜΠΙΑ ΔΡΑΣΗΣ & ΕΚΤΕΛΕΣΗ ΜΗΧΑΝΩΝ (PROCESSORS)
 # ==============================================================================
 col_btn1, col_btn2 = st.columns(2)
 
-# --- ΥΠΟ-ΕΝΟΤΗΤΑ 7.1: ΜΗΧΑΝΗ ΕΝΑΡΞΗΣ ΑΝΑΛΥΣΗΣ ---
+# --- ΥΠΟ-ΕΝΟΤΗΤΑ 7.1: ΜΗΧΑΝΗ ΕΝΑΡΞΗΣ ΑΝΑΛΥΣΗΣ (OPENAI & TAVILY) ---
 with col_btn1:
     if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΛΥΣΗΣ", use_container_width=True):
         if not st.session_state.get('unlock_analysis', False):
@@ -149,6 +160,17 @@ with col_btn1:
             st.warning("⚠️ Παρακαλώ πληκτρολογήστε το ερώτημα ή το θέμα που σας ενδιαφέρει.")
         else:
             with st.status("⚖️ Η Does4U επεξεργάζεται και ερευνά το αίτημα...") as status:
+                
+                # Ανάγνωση του PDF εδώ μέσα για να μην χάνεται το κείμενο στο reload
+                actual_pdf_text = ""
+                if uploaded_file:
+                    st.write("📄 Γίνεται ανάγνωση και εξαγωγή κειμένου από το PDF σας...")
+                    try:
+                        pdf_reader = PyPDF2.PdfReader(uploaded_file)
+                        actual_pdf_text = "".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
+                    except Exception as pdf_err:
+                        st.error(f"⚠️ Σφάλμα ανάγνωσης PDF: {pdf_err}")
+
                 st.write("🔍 Ζωντανή αναζήτηση δεδομένων στο διαδίκτυο (Tavily)...")
                 urls_found = []
                 try:
@@ -162,7 +184,7 @@ with col_btn1:
                     
                 st.write("🧠 Διασταύρωση πηγών, ανάλυση και σύνταξη στρατηγικού πορίσματος...")
                 try:
-                    document_context = pdf_text[:8000] if pdf_text else "Δεν έχει ανεβαστεί αρχείο PDF από τον χρήστη."
+                    document_context = actual_pdf_text[:8000] if actual_pdf_text else "Δεν έχει ανεβαστεί αρχείο PDF από τον χρήστη."
                     
                     enriched_prompt = f"""
                     ΚΕΙΜΕΝΟ PDF ΠΕΛΑΤΗ:
@@ -201,7 +223,7 @@ with col_btn1:
                 except Exception as e:
                     st.error(f"❌ Σφάλμα κατά τη σύνταξη της απάντησης: {e}")
 
-# --- ΥΠΟ-ΕΝΟΤΗΤΑ 7.2: ΜΗΧΑΝΗ ΕΝΑΡΞΗΣ ΜΕΤΑΤΡΟΠΗΣ ---
+# --- ΥΠΟ-ΕΝΟΤΗΤΑ 7.2: ΜΗΧΑΝΗ ΕΝΑΡΞΗΣ ΜΕΤΑΤΡΟΠΗΣ (ΑΘΙΚΤΗ) ---
 with col_btn2:
     if st.button("🔄 ΕΝΑΡΞΗ ΜΕΤΑΤΡΟΠΗΣ", use_container_width=True):
         if not st.session_state.get('unlock_converter', False):
