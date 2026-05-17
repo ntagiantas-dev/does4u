@@ -140,31 +140,9 @@ if uploaded_conv:
 
 st.write("---")
 
-# ==============================================================================
-# ΕΝΟΤΗΤΑ 6: ΠΕΔΙΑ ΕΙΣΑΓΩΓΗΣ ΧΡΗΣΤΗ (INPUT FIELDS & FORMAT)
-# ==============================================================================
-col_in1, col_in2 = st.columns(2)
-
-with col_in1:
-    user_query = st.text_input("💬 Θέστε το ερώτημά σας προς έρευνα (π.χ. Αλλαγές στο ΦΕΚ τουρισμού):", key="analysis_query")
-
-with col_in2:
-    output_format = st.selectbox("📂 Διαλέξτε format για τη μετατροπή:", ["Docx", "PDF", "TXT"], key="conv_format")
-
-# Εξαγωγή κειμένου από το PDF του Analysis Box αν υπάρχει
-pdf_text = ""
-if uploaded_file:
-    try:
-        pdf_reader = PyPDF2.PdfReader(uploaded_file)
-        pdf_text = "".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
-        st.toast("✅ Το αρχείο PDF ενσωματώθηκε στην ανάλυση!")
-    except:
-        pass
-
-st.write("") 
 
 # ==============================================================================
-# ΕΝΟΤΗΤΑ 7: ΚΟΥΜΠΙΑ ΔΡΑΣΗΣ & ΕΚΤΕΛΕΣΗ ΜΗΧΑΝΩΝ (PROCESSORS)
+# ΕΝΟΤΗΤΑ 6: ΚΟΥΜΠΙΑ ΔΡΑΣΗΣ & ΕΚΤΕΛΕΣΗ ΜΗΧΑΝΩΝ (PROCESSORS)
 # ==============================================================================
 col_btn1, col_btn2 = st.columns(2)
 
@@ -239,5 +217,6 @@ with col_btn2:
         else:
             st.session_state.start_conversion = True
 
-# Ενεργοποίηση και σχεδίαση του Converter UI από
-show_converter_ui(key_id="main_app_converter")
+# Εμφανίζουμε το UI του μετατροπέα ΜΟΝΟ αν ο χρήστης έχει πατήσει το κουμπί και είναι όλα έτοιμα
+if st.session_state.get('start_conversion', False):
+    show_converter_ui(key_id="main_app_converter")
