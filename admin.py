@@ -1,6 +1,6 @@
-# ==========================================================
-# SECTION 1: SETUP, KEYS & DIRECTORIES
-# ==========================================================
+#===============================================================
+#== 🏛️ ΕΝΟΤΗΤΑ 1: Εισαγωγή Εργαλείων, Κλειδιά & Ρυθμίσεις Φακέλων
+#=================================================================
 import streamlit as st
 import requests
 import json
@@ -12,29 +12,28 @@ from datetime import datetime
 from dotenv import load_dotenv
 from dash import show_promo_dashboard
 
-
-# Φόρτωση κλειδιών
+# 1. Φόρτωση των μυστικών κλειδιών (API Keys)
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
-# Ρύθμιση Σελίδας
+# 2. Ρύθμιση του τίτλου και του εικονιδίου στο tab του Browser
 st.set_page_config(
     page_title="Does4U | Strategic Admin",
     page_icon="🏛️",
     layout="wide"
 )
 
-# Δημιουργία φακέλου για τις εικόνες (για να μην λήγουν της DALL-E)
+# 3. Δημιουργία τοπικού φακέλου για την αποθήκευση των εικόνων του Blog
 IMAGE_DIR = "blog_images"
 if not os.path.exists(IMAGE_DIR):
     os.makedirs(IMAGE_DIR)
 
-# Αρχεία Βάσης
+# 4. Ορισμός των αρχείων-"αποθηκών" όπου γράφονται τα άρθρα και τα πρόχειρα
 DB_FILE = "blog_data.json"
 DRAFTS_FILE = "drafts_data.json"
 
-# --- ΣΥΝΑΡΤΗΣΗ ΓΙΑ ΤΟΠΙΚΗ ΑΠΟΘΗΚΕΥΣΗ ΕΙΚΟΝΑΣ ---
+# 5. Λειτουργία για το αυτόματο κατέβασμα και αποθήκευση της εικόνας
 def download_image(image_url):
     """Κατεβάζει την εικόνα από την OpenAI και την σώζει μόνιμα τοπικά"""
     try:
@@ -44,15 +43,17 @@ def download_image(image_url):
             filename = f"{IMAGE_DIR}/img_{timestamp}.png"
             with open(filename, "wb") as f:
                 f.write(response.content)
-            return filename # Επιστρέφει το τοπικό μονοπάτι
+            return filename
     except Exception as e:
         st.error(f"Σφάλμα αποθήκευσης εικόνας: {e}")
     return None
-# ==========================================================
-# SECTION 2: DATABASE LOGIC (MAX 30 POSTS)
-# ==========================================================
+#===========================================================
+#== 💾 ΕΝΟΤΗΤΑ 2: Η Λογική της "Αποθήκης" (Μέγιστο 30 Άρθρα)
+#===========================================================
+# Αρχικοποίηση της μνήμης των πρόχειρων αν είναι άδεια
 if "single_drafts" not in st.session_state:
     st.session_state.single_drafts = []
+
 def save_to_blog(data):
     """Αποθηκεύει οριστικά το άρθρο - Κρατάει τα τελευταία 30"""
     posts = []
@@ -63,19 +64,19 @@ def save_to_blog(data):
             except:
                 posts = []
     
-    posts.insert(0, data) # Το βάζει πρώτο (πιο πρόσφατο)
-    posts = posts[:30]    # ΚΡΑΤΑΕΙ ΜΟΝΟ ΤΑ 30 ΤΕΛΕΥΤΑΙΑ
+    posts.insert(0, data) # Τοποθέτηση στην αρχή της λίστας (πρώτο)
+    posts = posts[:30]    # Κόψιμο στα 30 άρθρα μέγιστο
     
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(posts, f, ensure_ascii=False, indent=4)
 
 def save_drafts_permanently(drafts_list):
-    """Σώζει τα πρόχειρα (Drafts) - Κρατάει τα τελευταία 30"""
+    """Σώζει τα πρόχειρα (Drafts) στο αρχείο - Κρατάει τα τελευταία 30"""
     with open(DRAFTS_FILE, "w", encoding="utf-8") as f:
         json.dump(drafts_list[:30], f, ensure_ascii=False, indent=4)
 
 def load_permanent_drafts():
-    """Φορτώνει τα drafts κατά την εκκίνηση"""
+    """Φορτώνει τα αποθηκευμένα πρόχειρα κατά την εκκίνηση του Admin"""
     if os.path.exists(DRAFTS_FILE):
         with open(DRAFTS_FILE, "r", encoding="utf-8") as f:
             try:
@@ -84,10 +85,10 @@ def load_permanent_drafts():
                 return []
     return []
 #==============================================================
-# SECTION 3: ΣΥΝΑΤΗΣΗ ΠΑΡΑΓΩΓΗΣ (LOGIC & AI)
+#== 🧠 ΕΝΟΤΗΤΑ 3: Η Μηχανή Παραγωγής Άρθρων (AI & Live Search)
 #==============================================================
 def generate_strategic_article(category, target):
-    # 1. Λογική ανά κατηγορία
+    # 1. Επιλογή προσωπικότητας AI και στοχευμένης αναζήτησης ανάλογα με την κατηγορία
     if category == "ΦΕΚ":
         logic = "Senior Legal Analyst. Focus: Deep Analysis και προθεσμίες."
         query = f"site:et.gr '{target}' απόφαση 2026"
@@ -100,10 +101,10 @@ def generate_strategic_article(category, target):
 
     with st.spinner("🕵️ Η Does4U αναλύει το θέμα..."):
         try:
-            # Α. Αναζήτηση
+            # Α. Ζωντανή αναζήτηση πηγών στο διαδίκτυο
             search = tavily.search(query=query, search_depth="advanced", max_results=3)
             
-            # --- Β. ΠΑΡΑΓΩΓΗ ΚΕΙΜΕΝΟΥ ---
+            # Β. Σύνταξη κειμένου από το GPT-4o
             prompt = f"""
             Role: {logic}
             ΘΕΜΑ: {target}
@@ -112,7 +113,7 @@ def generate_strategic_article(category, target):
             ΟΔΗΓΙΕΣ:
             1. Γράψε ένα άρθρο 500 λέξεων στα Ελληνικά.
             2. Στο ΤΕΛΟΣ του κειμένου, γράψε ΑΚΡΙΒΩΣ τη λέξη: SPLIT_HERE
-            3. Μετά τη λέξη SPLIT_HERE, γράψε ένα social media post.
+            3. Medά τη λέξη SPLIT_HERE, γράψε ένα social media post.
             """
             
             res = client.chat.completions.create(
@@ -121,7 +122,7 @@ def generate_strategic_article(category, target):
             )
             full_response = res.choices[0].message.content
 
-            # ΔΙΑΧΩΡΙΣΜΟΣ 
+            # Γ. Διαχωρισμός του άρθρου από το Social Media Post
             if "SPLIT_HERE" in full_response:
                 parts = full_response.split("SPLIT_HERE")
                 article_body = parts[0].strip()
@@ -130,7 +131,7 @@ def generate_strategic_article(category, target):
                 article_body = full_response
                 teaser_final = "Δείτε το πλήρες άρθρο στο blog μας!"
 
-            # --- Γ. ΕΠΙΛΟΓΗ ΕΙΚΟΝΑΣ ---
+            # Δ. Απόδοση της κατάλληλης προκαθορισμένης εικόνας background
             if category == "ΦΕΚ":
                 img_path = "blog_images/fek_default.jpg"
             elif category == "ΒΟΥΛΗ":
@@ -138,7 +139,7 @@ def generate_strategic_article(category, target):
             else:
                 img_path = "blog_images/business_default.jpg"
 
-            # --- Δ. ΕΠΙΣΤΡΟΦΗ ΔΕΔΟΜΕΝΩΝ (ΠΡΟΣΟΧΗ: ΧΩΡΙΣ ΜΕΤΑΦΡΑΣΜΕΝΕΣ ΕΝΤΟΛΕΣ) ---
+            # Ε. Επιστροφή όλων των στοιχείων πακέτο
             return {
                 "title": target,
                 "content": article_body.strip(),
@@ -147,71 +148,77 @@ def generate_strategic_article(category, target):
                 "target": target,
                 "date": datetime.now().strftime("%d/%m/%Y"),
                 "image": img_path,
-                "sources": [res['url'] for res in search] if isinstance(search, list) else []
+                "sources": [r['url'] for r in search['results']] if 'results' in search else []
             }
-            
 
         except Exception as e:
-            st.error(f"❌ Σφάλμα: {e}")
+            st.error(f"❌ Σφάλμα κατά την παραγωγή: {e}")
             return None
-# ==========================================================
-# SECTION 4: ΔΗΜΟΣΙΕΥΣΗ ΣΤΟ BLOG (FINAL ACTION)
-# ==========================================================
-
+#===================================================
+#== 🚀 ΕΝΟΤΗΤΑ 4: Η Λειτουργία Οριστικής Δημοσίευσης
+#===================================================
 def handle_publish(draft_data, index):
     """Μεταφέρει το άρθρο από τα Drafts στο οριστικό Blog με τις πηγές"""
     
-    # Φτιάχνουμε το τελικό κείμενο που θα βλέπει ο αναγνώστης
-    # Προσθέτουμε τις πηγές στο τέλος του content
     final_content = draft_data["content"]
     
+    # Αν υπάρχουν πηγές, τις προσθέτουμε με όμορφη μορφή στο τέλος του άρθρου
     if draft_data.get("sources"):
         final_content += "\n\n---\n### 🔗 Πηγές & Αναφορές:\n"
         for source in draft_data["sources"]:
             final_content += f"- {source}\n"
     
-    # Δημιουργούμε το τελικό αντικείμενο προς αποθήκευση
+    # Κατασκευή του τελικού αντικειμένου Blog Post
     blog_post = {
         "title": draft_data["title"],
-        "content": final_content, # Το άρθρο ΜΑΖΙ με τις πηγές
+        "content": final_content,
         "image": draft_data["image"],
         "date": draft_data["date"],
         "category": draft_data["category"],
-        "teaser": draft_data["teaser"] # Το teaser μένει ξεχωριστό πεδίο
+        "teaser": draft_data["teaser"]
     }
     
-    # 1. Αποθήκευση στο blog_data.json
+    # 1. Οριστική αποθήκευση στο blog_data.json
     save_to_blog(blog_post)
     
-    # 2. Αφαίρεση από τα drafts
-    st.session_state.single_drafts.pop(index)
-    save_drafts_permanently(st.session_state.single_drafts)
+    # 2. Αφαίρεση του άρθρου από τη λίστα των πρόχειρων
+    try:
+        saved_drafts = load_permanent_drafts()
+        if index < len(saved_drafts):
+            saved_drafts.pop(index)
+            save_drafts_permanently(saved_drafts)
+    except:
+        pass
     
     st.success("🚀 Το άρθρο δημοσιεύτηκε με επιτυχία μαζί με τις πηγές του!")
     time.sleep(1)
     st.rerun()
-# ==========================================================
-# SECTION 5: ΠΛΕΥΡΙΚΟ ΜΕΝΟΥ (SIDEBAR NAVIGATION)
-# ==========================================================
+#=======================================================
+#== 🎛️ ΕΝΟΤΗΤΑ 5: Το Πλευρικό Μενού (Sidebar Navigation)
+#=======================================================
 with st.sidebar:
-    st.image("does4u_logo.png", caption="Does4U Admin v2.0")
+    # 1. Εμφάνιση Λογοτύπου και Έκδοσης
+    try:
+        st.image("does4u_logo.png", caption="Does4U Admin v2.0")
+    except:
+        st.caption("Does4U Admin v2.0")
+        
     st.title("🏛️ Στρατηγείο Διαχείρισης")
     st.divider()
     
-    # ΕΔΩ ΕΙΝΑΙ ΤΟ ΜΕΝΟΥ ΠΟΥ ΑΛΛΑΖΕΙ ΤΙΣ ΣΕΛΙΔΕΣ!
+    # 2. Το μενού επιλογής σελίδας
     admin_page = st.radio(
         "Πλοήγηση", 
         ["📝 Παραγωγή Blog", "🔑 Διαχείριση Promo Codes"]
     )
     st.divider()
-    # ==========================================================
-# SECTION 6: ΛΟΓΙΚΗ ΕΜΦΑΝΙΣΗΣ ΑΝΑ ΣΕΛΙΔΑ
-# ==========================================================
-
-# --- ΚΑΡΤΕΛΑ 1: ΠΑΡΑΓΩΓΗ BLOG ---
+#=====================================================
+#== 📺 ΕΝΟΤΗΤΑ 6: Η Κύρια Οθόνη & Η Λογική Ανά Σελίδα
+#=====================================================
+# --- ΠΕΡΙΠΤΩΣΗ 1: ΣΕΛΙΔΑ ΠΑΡΑΓΩΓΗΣ BLOG ---
 if admin_page == "📝 Παραγωγή Blog":
     
-    # Ξαναχτίζουμε τα πεδία του Blog στο sidebar μόνο για αυτή τη σελίδα
+    # Προσθήκη των εργαλείων δημιουργίας στο sidebar
     with st.sidebar:
         st.subheader("🚀 Κέντρο Παραγωγής Blog")
         category = st.selectbox("Επίλεξε Κατηγορία", ["ΦΕΚ", "Βουλή", "Επιχειρηματικότητα"])
@@ -227,63 +234,61 @@ if admin_page == "📝 Παραγωγή Blog":
                 article_data = generate_strategic_article(category, target_point)
                 if article_data:
                     st.session_state['latest_article'] = article_data
-                    save_drafts_permanently([article_data])
+                    # Προσθήκη στα υπάρχοντα πρόχειρα
+                    current_drafts = load_permanent_drafts()
+                    current_drafts.insert(0, article_data)
+                    save_drafts_permanently(current_drafts)
                     st.success("✅ Το άρθρο ολοκληρώθηκε!")
 
-    # --- DISPLAY AREA (Κύρια Οθόνη Blog) ---
+    # --- ΚΕΝΤΡΙΚΗ ΟΘΟΝΗ: ΕΜΦΑΝΙΣΗ ΜΟΛΙΣ ΠΑΡΑΧΘΕΝΤΟΣ ΑΡΘΡΟΥ ---
     if 'latest_article' in st.session_state:
         art = st.session_state['latest_article']
         st.divider()
         st.header(art['title'])
         st.markdown(art['content'])
         
+        # Εμφάνιση των πηγών που βρήκε το Google Search
         if art.get('sources'):
             st.subheader("🔗 Πηγές & Αναφορές")
             for src in art['sources']:
                 st.write(f"• {src}")
 
+        # Εμφάνιση του έτοιμου κειμένου για Social Media
         st.subheader("📱 Teaser για Social Media")
         st.info(art.get('teaser', 'Δείτε το πλήρες άρθρο στο blog μας!'))
 
-        if st.button("📥 Αποθήκευση στα Πρόχειρα (Drafts)"):
-            save_drafts_permanently([art])
-            st.success("Το άρθρο σώθηκε στη λίστα παρακάτω!")
-
+    # --- ΚΑΤΩ ΜΕΡΟΣ: ΛΙΣΤΑ ΜΕ ΤΑ ΑΠΟΘΗΚΕΥΜΕΝΑ ΠΡΟΧΕΙΡΑ ---
     st.divider()
     st.subheader("📝 Πρόχειρα Άρθρα προς Επιμέλεια")
     saved_drafts = load_permanent_drafts()
 
     if saved_drafts:
         for idx, d in enumerate(saved_drafts):
-            with st.expander(f"📂 {d.get('date', '---')} - {d.get('title', 'Χωρίς Τίτλο')}"):
+            # Δημιουργία ακορντεόν (expander) για κάθε πρόχειρο άρθρο
+            with st.expander(f"📂 {d.get('date', '---')} - {d.get('title', 'Χωρίς Τίτλο')} ({d.get('category', 'Γενικό')})"):
                 st.markdown(d['content'])
                 
-                # Εμφάνιση Clickable Links για τις πηγές
+                # Εμφάνιση των links των πηγών ως clickable συνδέσμους
                 if d.get('sources'):
                     st.write("**🔗 Πηγές & Σύνδεσμοι:**")
-                    sources_data = d['sources']
-                    if isinstance(sources_data, list):
-                        for s in sources_data:
-                            if str(s).startswith("http"):
-                                st.markdown(f"• 🌐 [{s}]({s})")
-                            else:
-                                st.markdown(f"• 📄 {s}")
-                    else:
-                        st.write(sources_data)
+                    for s in d['sources']:
+                        st.markdown(f"• 🌐 [{s}]({s})")
                 
+                # Κουμπί για οριστικό ανέβασμα στο site
                 if st.button(f"🚀 ΔΗΜΟΣΙΕΥΣΗ ΣΤΟ BLOG", key=f"pub_{idx}"):
                     handle_publish(d, idx)
-                    st.success("ΤΟ ΑΡΘΡΟ ΑΝΕΒΗΚΕ ΟΡΙΣΤΙΚΑ!")
-                    st.rerun()
 
-        if st.button("🗑️ ΚΑΘΑΡΙΣΜΟΣ ΟΛΩΝ ΤΩΝ DRAFTS"):
+        # Κουμπί ολικής διαγραφής των πρόχειρων
+        st.write("")
+        if st.button("🗑️ ΚΑΘΑΡΙΣΜΟΣ ΟΛΩΝ ΤΩΝ DRAFTS", use_container_width=True):
             with open(DRAFTS_FILE, "w", encoding="utf-8") as f:
                 json.dump([], f)
             st.rerun()
     else:
         st.info("Δεν υπάρχουν άρθρα στη λίστα αναμονής.")
 
-# --- ΚΑΡΤΕΛΑ 2: ΔΙΑΧΕΙΡΙΣΗ PROMO CODES ---
+# --- ΠΕΡΙΠΤΩΣΗ 2: ΣΕΛΙΔΑ ΔΙΑΧΕΙΡΙΣΗΣ ΚΩΔΙΚΩΝ ---
 elif admin_page == "🔑 Διαχείριση Promo Codes":
-    # Η κύρια οθόνη αδειάζει και καλεί το dashboard από το dash.py
+    # Φορτώνει απευθείας το dashboard από το αρχείο dash.py
     show_promo_dashboard()
+        
