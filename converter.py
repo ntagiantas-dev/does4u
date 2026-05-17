@@ -18,15 +18,11 @@ def read_pdf(file):
         pdf_reader = PyPDF2.PdfReader(file)
         text = ""
         for page in pdf_reader.pages:
-            # 8 κενά μέσα από το for
             content = page.extract_text()
             if content:
-                # 12 κενά μέσα από το if
                 text += content + "\n"
-        # ΠΡΟΣΟΧΗ: Το return πρέπει να είναι στην ίδια ευθεία με το for!
         return text if text.strip() else "Δεν βρέθηκε αναγνώσιμο κείμενο."
     except Exception as e:
-        # ΤΟ EXCEPT ΠΡΕΠΕΙ ΝΑ ΕΙΝΑΙ ΣΤΗΝ ΙΔΙΑ ΕΥΘΕΙΑ ΜΕ ΤΟ TRY
         return f"Σφάλμα ανάγνωσης PDF: {e}"
 
 def read_docx(file):
@@ -130,7 +126,7 @@ def show_converter_ui():
         # 2. ΡΩΤΑΜΕ ΤΟΝ ΧΡΗΣΤΗ: Τι μετατροπή θέλει;
         st.markdown("#### 🎯 Επιλέξτε τη μορφή του τελικού εγγράφου:")
         
-        # Η λίστα με τις διαθέσιμες μετατροπές
+        # Η λίστα με τις διαθέσιμες μετατροπές (Με 100% σταθερό, μοναδικό key)
         conversion_target = st.selectbox(
             "Διαθέσιμες Μετατροπές:",
             [
@@ -139,39 +135,40 @@ def show_converter_ui():
                 "Μετατροπή σε Έγγραφο PDF (.pdf)",
                 "Μετατροπή σε Απλό Κείμενο (.txt)"
             ],
-            key=f"selectbox_converter_unique_fixed_id_{key_suffix}"
+            key="selectbox_converter_final_fixed_stable_v4"
         )
         
         # 3. Ετοιμάζουμε το αρχείο ανάλογα με την επιλογή του
         if conversion_target == "Μετατροπή σε Αρχείο Word (.docx)":
-            with st.spinner("Ετοιμάζω το Word..."):
-                docx_bytes = create_docx(raw_text)
-                st.download_button(
-                    label="📥 Λήψη έτοιμου εγγράφου Word (.docx)",
-                    data=docx_bytes,
-                    file_name=f"does4u_converted.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
-                )
+            docx_bytes = create_docx(raw_text)
+            st.download_button(
+                label="📥 Λήψη έτοιμου εγγράφου Word (.docx)",
+                data=docx_bytes,
+                file_name="does4u_converted.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                use_container_width=True,
+                key="download_btn_docx_final"
+            )
                 
         elif conversion_target == "Μετατροπή σε Έγγραφο PDF (.pdf)":
-            with st.spinner("Ετοιμάζω το PDF..."):
-                pdf_bytes = create_pdf(raw_text)
-                st.download_button(
-                    label="📥 Λήψη έτοιμου εγγράφου PDF (.pdf)",
-                    data=pdf_bytes,
-                    file_name=f"does4u_converted.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
+            pdf_bytes = create_pdf(raw_text)
+            st.download_button(
+                label="📥 Λήψη έτοιμου εγγράφου PDF (.pdf)",
+                data=pdf_bytes,
+                file_name="does4u_converted.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key="download_btn_pdf_final"
+            )
                 
         elif conversion_target == "Μετατροπή σε Απλό Κείμενο (.txt)":
             st.download_button(
                 label="📥 Λήψη αρχείου Κειμένου (.txt)",
                 data=raw_text,
-                file_name=f"does4u_converted.txt",
+                file_name="does4u_converted.txt",
                 mime="text/plain",
-                use_container_width=True
+                use_container_width=True,
+                key="download_btn_txt_final"
             )
             
     else:
