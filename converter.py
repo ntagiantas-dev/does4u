@@ -103,7 +103,7 @@ def create_docx(text_content):
 # 🖥️ Η ΒΙΤΡΙΝΑ ΤΟΥ ΜΕΤΑΤΡΟΠΕΑ (UI)
 # ==========================================
 
-def show_converter_ui():
+def show_converter_ui(key_suffix=""):
     st.write("---")
     st.markdown("### 🔄 Πολυμορφικός Μετατροπέας Εγγράφων")
     
@@ -140,7 +140,7 @@ def show_converter_ui():
                 "Μετατροπή σε Έγγραφο PDF (.pdf)",
                 "Μετατροπή σε Απλό Κείμενο (.txt)"
             ],
-            key="selectbox_converter_unique_fixed_id"
+            key=f"selectbox_converter_unique_fixed_id_{key_suffix}"
         )
         
         # 3. Ετοιμάζουμε το αρχείο ανάλογα με την επιλογή του
