@@ -2,6 +2,7 @@ import streamlit as st
 import docx
 import PyPDF2
 import io
+import time
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -140,7 +141,7 @@ def show_converter_ui():
                 "Μετατροπή σε Έγγραφο PDF (.pdf)",
                 "Μετατροπή σε Απλό Κείμενο (.txt)"
             ],
-            key="final_live_converter_selectbox_key"
+            key=f"converter_selectbox_{time.time()}"
         )
         
         # 3. Ετοιμάζουμε το αρχείο ανάλογα με την επιλογή του
