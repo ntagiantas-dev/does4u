@@ -85,16 +85,10 @@ with st.sidebar:
         code_upper = promo_input.upper().strip()
         
         if code_upper in valid_codes:
-            code_type = valid_codes[code_upper].get("type", "converter")
-            
-            if code_type == "analysis":
-                st.session_state.unlock_analysis = True
-                st.session_state.unlock_converter = True
-                st.success("🚀 Premium Κωδικός Ανάλυσης Ενεργός!")
-            else:
-                st.session_state.unlock_converter = True
-                st.session_state.unlock_analysis = False
-                st.success("🔄 Κωδικός Μετατροπών (Convert) Ενεργός!")
+            # 🔓 ΠΑΡΑΚΑΜΨΗ: Ξεκλειδώνουμε και τα δύο για να σιγουρευτούμε ότι θα τρέξει η ανάλυση!
+            st.session_state.unlock_analysis = True
+            st.session_state.unlock_converter = True
+            st.success("🚀 Premium Πρόσβαση (Ανάλυση & Μετατροπή) Ενεργή!")
                 
             time.sleep(1)
             st.rerun()
