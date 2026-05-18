@@ -112,10 +112,18 @@ with admin_tab1:
             st.warning("Παρακαλώ εισάγετε ένα θέμα στόχευσης.")
 
     # Εμφάνιση του άρθρου και του κουμπιού δημοσίευσης αν υπάρχει παραχθέν περιεχόμενο
+    # Εμφάνιση του άρθρου σε επεξεργάσιμο Text Area και κουμπί δημοσίευσης
     if st.session_state.current_article:
         st.markdown("---")
-        st.markdown("### 📝 Παραγωγή Draft (SEO Optimized)")
-        st.markdown(st.session_state.current_article)
+        st.markdown("### 📝 Επεξεργασία & Έγκριση Draft (SEO Optimized)")
+        st.write("Μπορείτε να διορθώσετε το κείμενο απευθείας στο παρακάτω πλαίσιο πριν τη δημοσίευση:")
+        
+        # Μετατρέπουμε το draft σε επεξεργάσιμο πεδίο κειμένου
+        edited_content = st.text_area(
+            label="Περιεχόμενο Άρθρου (Markdown)", 
+            value=st.session_state.current_article, 
+            height=500
+        )
         
         if st.button("✅ Έγκριση & Live Δημοσίευση στο Blog"):
             data_file = "blog_data.json"
@@ -127,7 +135,7 @@ with admin_tab1:
                 "title": clean_title,
                 "date": datetime.now().strftime("%d/%m/%Y"),
                 "category": "Growth Hacking & Automations",
-                "content": st.session_state.current_article,
+                "content": edited_content, # Αποθηκεύει το ΔΙΟΡΘΩΜΕΝΟ κείμενο
                 "image": st.session_state.current_img
             }
             
@@ -148,6 +156,7 @@ with admin_tab1:
             st.success("🎉 Το άρθρο αποθηκεύτηκε επιτυχώς στο blog_data.json!")
             # Μηδενισμός του state μετά τη δημοσίευση
             st.session_state.current_article = None
+            st.rerun()
 
 # ==========================================
 # TAB 2: DEAL HUNTER BOT (REDDIT LEADS)
