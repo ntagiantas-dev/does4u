@@ -9,3 +9,4 @@ pillow
 praw
 requests
 beautifulsoup4
+firecrawl-py
