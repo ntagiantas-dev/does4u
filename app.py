@@ -6,7 +6,7 @@ import pandas as pd
 
 # Ρύθμιση Σελίδας
 st.set_page_config(page_title="Does4U - Deal Hunter", page_icon="⚡", layout="wide")
-st.title("🎯 Deal Hunter AI v2.2")
+st.title("🎯 Deal Hunter AI v2.3")
 st.subheader("Αυτοματοποιημένο Κυνήγι Leads & Σύνταξη Emails για τη Does4U")
 
 # Διάβασμα των κλειδιών από τα Secrets του Streamlit Cloud
@@ -14,7 +14,7 @@ try:
     FIRECRAWL_API_KEY = st.secrets["FIRECRAWL_API_KEY"]
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 except KeyError:
-    st.error("🚨 Σφάλμα: Δεν βρέθηκαν τα κλειδιά στα Secrets του Streamlit! Παρακαλώ πρόσθεσε τα 'FIRECRAWL_API_KEY' και 'OPENAI_API_KEY'.")
+    st.error("🚨 Σφάλμα: Δεν βρέθηκαν τα κλειδιά στα Secrets του Streamlit! Παρακαλώ πρόσθεσε τα 'FIRECRAWL_API_KEY' and 'OPENAI_API_KEY'.")
     st.stop()
 
 # Κύρια Μπάρα Αναζήτησης
@@ -30,20 +30,35 @@ if st.button("🚀 Έναρξη Κυνηγιού"):
                 firecrawl_app = FirecrawlApp(api_key=FIRECRAWL_API_KEY)
                 openai_client = OpenAI(api_key=OPENAI_API_KEY)
                 
-                # Αναζήτηση με Firecrawl (φέρνουμε τα top 5 αποτελέσματα)
+                # Αναζήτηση με Firecrawl
                 search_result = firecrawl_app.search(query, limit=5)
                 
-                # Έλεγχος αν υπάρχουν δεδομένα στη νέα μορφή της βιβλιοθήκης
-                if not search_result.data:
-                    st.warning("Δεν βρέθηκαν αποτελέσματα.")
+                # --- ΕΞΥΠΝΟΣ ΕΛΕΓΧΟΣ ΓΙΑ ΤΗ ΔΟΜΗ ΤΩΝ ΔΕΔΟΜΕΝΩΝ ---
+                raw_items = []
+                if isinstance(search_result, list):
+                    raw_items = search_result
+                elif hasattr(search_result, 'data') and search_result.data:
+                    raw_items = search_result.data
+                elif hasattr(search_result, 'web') and search_result.web:
+                    raw_items = search_result.web
+                elif isinstance(search_result, dict) and "data" in search_result:
+                    raw_items = search_result["data"]
+                
+                if not raw_items:
+                    st.warning("Δεν βρέθηκαν αποτελέσματα ή η δομή των δεδομένων άλλαξε.")
                 else:
                     leads_list = []
                     
-                    for item in search_result.data:
-                        # Στη νέα έκδοση, τα πεδία διαβάζονται ως attributes (με τελεία)
-                        title = getattr(item, 'title', 'Αγγελία χωρίς τίτλο') or 'Αγγελία χωρίς τίτλο'
-                        url = getattr(item, 'url', '')
-                        content = getattr(item, 'markdown', '')[:3000] if getattr(item, 'markdown', '') else ''
+                    for item in raw_items:
+                        # Έλεγχος αν το item είναι dictionary ή object
+                        if isinstance(item, dict):
+                            title = item.get('title', 'Αγγελία χωρίς τίτλο') or 'Αγγελία χωρίς τίτλο'
+                            url = item.get('url', '')
+                            content = item.get('markdown', '')[:3000] if item.get('markdown') else ''
+                        else:
+                            title = getattr(item, 'title', 'Αγγελία χωρίς τίτλο') or 'Αγγελία χωρίς τίτλο'
+                            url = getattr(item, 'url', '')
+                            content = getattr(item, 'markdown', '')[:3000] if getattr(item, 'markdown', '') else ''
                         
                         # Prompt για JSON Mode (ειδικά προσαρμοσμένο για τη Does4U)
                         prompt = f"""
