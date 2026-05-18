@@ -5,9 +5,9 @@ import json
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Fixed-Price Sniper v0.0.4", page_icon="🦊", layout="wide")
-st.title("🦊 Does4U Jina AI Fixed-Price Sniper v0.0.4")
-st.subheader("Στάδιο 1: Φιλτράρισμα για One-Off Projects (Παράδοση & Πληρωμή)")
+st.set_page_config(page_title="Does4U - Lead Gen & Copywriter v0.0.6", page_icon="⚡", layout="wide")
+st.title("⚡ Does4U Lead Gen & Copywriter v0.0.6")
+st.subheader("Στάδιο 1 & 2: Συλλογή, Φιλτράρισμα & Έτοιμα Cold Emails")
 
 # Έλεγχος και Διάβασμα των κλειδιών από τα Secrets
 try:
@@ -17,61 +17,46 @@ except KeyError:
     st.error("🚨 Σφάλμα: Λείπει το JINA_API_KEY ή το OPENAI_API_KEY από τα Secrets του Streamlit!")
     st.stop()
 
-# 🎯 Στοχεύουμε στις Freelance ευκαιρίες του Xing
 XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20freelance"
 
-st.info(f"🎯 **Στόχος:** Αναζήτηση One-Off Projects στην πηγή: `{XING_TARGET_URL}`")
-
-if st.button("🔥 ΕΝΑΡΞΗ ΦΙΛΤΡΑΡΙΣΜΑΤΟΣ JINA v0.0.4"):
-    st.write("📡 Η Jina AI σκανάρει το Xing για Freelance ευκαιρίες...")
+if st.button("🚀 ΕΝΑΡΞΗ ΠΛΗΡΟΥΣ ΑΥΤΟΜΑΤΙΣΜΟΥ v0.0.6"):
+    st.write("📡 Η Jina AI σκανάρει το Xing για Freelance/Junior ευκαιρίες...")
     
     try:
         jina_endpoint = f"https://r.jina.ai/{XING_TARGET_URL}"
-        headers = {
-            "Authorization": f"Bearer {JINA_API_KEY}",
-            "X-Return-Format": "markdown"
-        }
-        
+        headers = {"Authorization": f"Bearer {JINA_API_KEY}", "X-Return-Format": "markdown"}
         response = requests.get(jina_endpoint, headers=headers)
         
         if response.status_code != 200:
-            st.error(f"❌ Η Jina AI επέστρεψε σφάλμα συστήματος (Status Code: {response.status_code}).")
+            st.error(f"❌ Η Jina API απέτυχε με Status: {response.status_code}")
         else:
             raw_markdown = response.text
             
             if not raw_markdown or len(raw_markdown.strip()) < 200:
-                st.error("⚠️ Το κείμενο που επέστρεψε η Jina είναι πολύ μικρό ή άδειο.")
+                st.error("⚠️ Άδειο ή πολύ μικρό κείμενο επιστράφηκε από τη Jina.")
             else:
-                st.success(f"✅ Η Jina AI διάβασε τη σελίδα επιτυχώς ({len(raw_markdown)} χαρακτήρες)!")
+                st.success("✅ Τα δεδομένα του Xing λήφθηκαν επιτυχώς!")
                 
-                with st.spinner("Το GPT-4o-mini ξεσκαρτάρει μόνιμες δουλειές και κρατάει ΜΟΝΟ τα One-Off Projects..."):
+                with st.spinner("Το GPT-4o-mini αναλύει, φιλτράρει και γράφει τα emails προσέγγισης..."):
                     openai_client = OpenAI(api_key=OPENAI_API_KEY)
                     
+                    # Ζητάμε από το AI να κάνει τη συλλογή ΚΑΙ το copywriting ταυτόχρονα
                     prompt = """
-                    Είσαι ο φονικός Data Extractor της Does4U. Σου δίνω το Markdown κείμενο αγγελιών από το Xing.
+                    Είσαι ο κορυφαίος Lead Generator και Cold Copywriter της Does4U. 
+                    Ψάξε στο Markdown κείμενο του Xing για projects Python (Freelance, Junior, One-off, fixed price).
+                    Αποκλεισέ και πέταξε στα σκουπίδια μόνιμες θέσεις εργασίας (Festanstellung, Vollzeit, μόνιμος υπάλληλος).
                     
-                    Η ΑΠΟΣΤΟΛΗ ΣΟΥ ΕΙΝΑΙ ΕΞΑΙΡΕΤΙΚΑ ΚΡΙΣΙΜΗ:
-                    Θέλουμε ΜΟΝΟ projects που είναι "Fixed-Price" ή "Projektbasiert" (One-off / Παράδοση και τέλος). 
-                    Πέταξε στα σκουπίδια θέσεις για μόνιμη απασχόληση (Festanstellung, Full-time, Vollzeit) ή μακροχρόνια συμβόλαια που ζητάνε 'υπάλληλο'.
+                    Για κάθε κατάλληλο lead που βρίσκεις, θέλω να δημιουργήσεις ένα επαγγελματικό, σύντομο και ελκυστικό Cold Email στα Αγγλικά, με σκοπό να τους προσφέρεις τις υπηρεσίες μας (Python automation, Web Scraping, scripts) ως εξωτερικός συνεργάτης. Το email πρέπει να είναι έτοιμο για copy-paste, χωρίς placeholders (αν δεν ξέρεις το όνομα του υπεύθυνου, ξεκίνα με "Dear Hiring Team," ή "Hello,").
                     
-                    Κράτα αγγελίες που:
-                    - Ζητάνε εξωτερικό συνεργάτη (Freelancer / Κατ' αποκοπήν).
-                    - Αφορούν συγκεκριμένο task (π.χ. "Φτιάξε ένα bot", "Κάνε migration μια βάση δεδομένων", "Στήσε ένα automation").
-                    - Είναι Python, Web Scraping, AI, Bots ή SaaS.
-                    
-                    Για κάθε match, εξήγαγε:
-                    - Καθαρό Όνομα Εταιρείας ή Όνομα Client (Keyword 1).
-                    - Username ή ID χρήστη αν υπάρχει, αλλιώς Ν/Α (Keyword 2).
-                    
-                    Επέστρεψε ΑΥΣΤΗΡΑ ΚΑΙ ΜΟΝΟ ένα JSON αντικείμενο με τη συγκεκριμένη δομή:
+                    Επέστρεψε ΑΥΣΤΗΡΑ ΚΑΙ ΜΟΝΟ ένα JSON αντικείμενο με αυτή τη δομή:
                     {
                         "leads": [
                             {
-                                "title_gr": "Ο τίτλος του project στα Ελληνικά",
-                                "client_company_keyword": "Όνομα Εταιρείας ή Client",
-                                "social_username_keyword": "Username ή ID χρήστη",
-                                "project_link": "Το link του project στο Xing",
-                                "summary_gr": "Τι συγκεκριμένο έργο ζητάνε να παραδοθεί (στα Ελληνικά)"
+                                "title_gr": "Ο τίτλος της αγγελίας στα Ελληνικά",
+                                "client_company_keyword": "Όνομα Εταιρείας",
+                                "project_link": "Το link της αγγελίας στο Xing",
+                                "summary_gr": "Τι συγκεκριμένο έργο ζητάνε να παραδοθεί (στα Ελληνικά)",
+                                "ready_email_en": "Το έτοιμο Cold Email στα Αγγλικά προσαρμοσμένο για αυτή την εταιρεία"
                             }
                         ]
                     }
@@ -81,23 +66,46 @@ if st.button("🔥 ΕΝΑΡΞΗ ΦΙΛΤΡΑΡΙΣΜΑΤΟΣ JINA v0.0.4"):
                         model="gpt-4o-mini",
                         response_format={"type": "json_object"},
                         messages=[
-                            {"role": "system", "content": "You are a data extraction bot filtering strictly for freelance, one-off projects. Return only valid JSON."},
+                            {"role": "system", "content": "You are a precise data extractor and business copywriter. Return only valid JSON."},
                             {"role": "user", "content": f"{prompt}\n\nΚείμενο Xing:\n{raw_markdown}"}
                         ],
-                        temperature=0.1
+                        temperature=0.2
                     )
                     
                     ai_data = json.loads(ai_response.choices[0].message.content)
                     leads_list = ai_data.get("leads", [])
                     
                     if len(leads_list) == 0:
-                        st.warning("⚠️ Το AI δεν βρήκε καθαρά 'one-off' projects σε αυτή τη σελίδα. Όλες οι αγγελίες αφορούσαν μόνιμη απασχόληση.")
+                        st.warning("⚠️ Δεν βρέθηκαν One-Off/Freelance projects αυτή τη στιγμή στο Xing.")
                     else:
-                        df = pd.DataFrame(leads_list)
-                        st.success(f"🔥 Επιτυχία! Εντοπίστηκαν {len(df)} One-Off Projects (Μια φορά και τέλος)!")
+                        st.success(f"🔥 Επιτυχία! Βρέθηκαν {len(leads_list)} κατάλληλα leads!")
                         
-                        df.columns = ["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Link", "Τι πρέπει να παραδώσεις"]
-                        st.dataframe(df[["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Τι πρέπει να παραδώσεις", "Link"]], use_container_width=True)
-                        
-    except Exception as main_e:
-        st.error(f"🚨 Σφάλμα κατά την εκτέλεση: {main_e}")
+                        # Δημιουργία καθαρού πίνακα για τον χρήστη
+                        for idx, lead in enumerate(leads_list):
+                            company = lead['client_company_keyword']
+                            title = lead['title_gr']
+                            summary = lead['summary_gr']
+                            link = lead['project_link']
+                            email_content = lead['ready_email_en']
+                            
+                            with st.expander(f"💼 {idx+1}. {company} - {title}"):
+                                col1, col2 = st.columns([1, 1])
+                                
+                                with col1:
+                                    st.markdown("#### 📑 Στοιχεία Αγγελίας (Ελληνικά)")
+                                    st.write(f"**Εταιρεία:** `{company}`")
+                                    st.write(f"**Τι ζητάνε:** {summary}")
+                                    st.markdown(f"[🔗 Δες την αγγελία στο Xing]({link})")
+                                
+                                with col2:
+                                    st.markdown("#### ✉️ Έτοιμο Cold Email (Αγγλικά)")
+                                    st.text_area(
+                                        label="Κάνε Copy-Paste το κείμενο:",
+                                        value=email_content,
+                                        height=250,
+                                        key=f"email_{idx}"
+                                    )
+                                    st.caption("💡 Μπορείς να αντιγράψεις αυτό το κείμενο και να το στείλεις μέσω Xing ή της φόρμας επικοινωνίας τους.")
+                                
+    except Exception as e:
+        st.error(f"🚨 Σφάλμα συστήματος: {e}")
