@@ -1,40 +1,23 @@
 import streamlit as st
-import openai
 import requests
-import sqlite3
+from openai import OpenAI
 import json
-import re
-from datetime import datetime
+import sqlite3
+import pandas as pd
 
-# Ρύθμιση της σελίδας Streamlit
-st.set_page_config(page_title="Does4U - Strict Match & Draft v0.0.9", page_icon="🎯", layout="wide")
+# Ρύθμιση Σελίδας
+st.set_page_config(page_title="Does4U - Strict Match v0.0.9", page_icon="🎯", layout="wide")
+st.title("🎯 Does4U Strict Match & Draft v0.0.9")
 
-st.title("🎯 Does4U - Strict Match & Draft v0.0.9")
-st.subheader("Αυτοματοποιημένη Εύρεση Αγγελιών Xing & Στελεχών μέσω AI & Apollo API")
-
-# 1. Έλεγχος και Φόρτωση των Keys από τα Secrets του Streamlit
-if "OPENAI_API_KEY" in st.secrets:
-    openai.api_key = st.secrets["OPENAI_API_KEY"]
-else:
-    st.error("❌ Το OpenAI API Key λείπει από τα Secrets!")
-    st.stop()
-
-if "APOLLO_API_KEY" in st.secrets:
-    APOLLO_KEY = st.secrets["APOLLO_API_KEY"]
-else:
-    st.error("❌ Το Apollo API Key λείπει από τα Secrets!")
-    st.stop()
-
-JINA_KEY = st.secrets.get("JINA_API_KEY", "")
-
-# 2. ΒΑΣΗ ΔΕΔΟΜΕΝΩΝ (SQLite)
+# --- ΒΑΣΗ ΔΕΔΟΜΕΝΩΝ (SQLite) ---
 def init_db():
     conn = sqlite3.connect("does4u_leads.db")
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS leads (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            company_name TEXT,
+            company TEXT,
+            title TEXT,
             summary TEXT,
             link TEXT,
             email_content TEXT,
@@ -45,168 +28,124 @@ def init_db():
     conn.commit()
     conn.close()
 
-init_db()
-
-# 3. Βοηθητική Λειτουργία για το Apollo API (Αναζήτηση Ανθρώπων/Emails)
-def search_apollo_contacts(company_domain, target_roles):
-    """
-    Κάνει αναζήτηση στο Apollo API για την εύρεση στελεχών βάσει domain εταιρείας και ρόλων.
-    """
-    url = "https://api.apollo.io/v1/contacts/search"
-    headers = {
-        "Cache-Control": "no-cache",
-        "Content-Type": "application/json",
-        "X-Api-Key": APOLLO_KEY
-    }
-    payload = {
-        "q_organization_domains": company_domain,
-        "person_titles": target_roles,
-        "page": 1,
-        "per_page": 4
-    }
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            return response.json()
-        return None
-    except Exception:
-        return None
-
-# 4. Κύρια Λειτουργία Jina Reader για Xing
-def fetch_xing_data(url):
-    headers = {}
-    if JINA_KEY:
-        headers["Authorization"] = f"Bearer {JINA_KEY}"
-    
-    jina_url = f"https://r.jina.ai/{url}"
-    try:
-        response = requests.get(jina_url, headers=headers)
-        if response.status_code == 200:
-            return response.text
-        else:
-            st.error(f"❌ Σφάλμα Jina AI ({response.status_code}): {response.text}")
-            return None
-    except Exception as e:
-        st.error(f"❌ Αποτυχία σύνδεσης με Jina AI: {e}")
-        return None
-
-# 5. Κύριο UI της Εφαρμογής
-xing_url = st.text_input("🔗 Εισάγετε το URL της αγγελίας ή της αναζήτησης από το Xing:", placeholder="https://www.xing.com/jobs/...")
-
-if st.button("🚀 Έναρξη Στόχευσης & Σύνδεσης"):
-    if not xing_url:
-        st.warning("⚠️ Παρακαλώ εισάγετε ένα έγκυρο Xing URL πρώτα.")
-    else:
-        with st.spinner("🕷️ Η Jina AI διαβάζει το Xing και το GPT αναλύει τα δεδομένα..."):
-            raw_text = fetch_xing_data(xing_url)
-            
-            if raw_text:
-                # Prompt για το GPT ώστε να αναλύσει την αγγελία και να βγάλει δομημένο JSON
-                prompt_analysis = f"""
-                Analyze the following text extracted from a Xing job posting. 
-                Extract the Company Name, a short Summary of the job requirements, and determine if it matches a high-value target profile (has_match = 1 if it fits, 0 otherwise).
-                Also, guess or extract the official company website/domain (e.g., 'google.com', 'siemens.de') which will be used for API lookups.
-                
-                Output strictly in valid JSON format with these exact keys:
-                {{
-                    "company_name": "Name of Company",
-                    "company_domain": "companywebsite.com",
-                    "summary": "Brief summary of requirements",
-                    "has_match": 1 or 0
-                }}
-
-                Xing Data:
-                {raw_text[:4000]}
-                """
-                
-                try:
-                    client = openai.OpenAI(api_key=openai.api_key)
-                    response_gpt = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "user", "content": prompt_analysis}],
-                        temperature=0.2
-                    )
-                    
-                    gpt_out = response_gpt.choices[0].message.content.strip()
-                    if "```json" in gpt_out:
-                        gpt_out = gpt_out.split("```json")[1].split("```")[0].strip()
-                    elif "```" in gpt_out:
-                        gpt_out = gpt_out.split("```")[1].split("```")[0].strip()
-                        
-                    data = json.loads(gpt_out)
-                    
-                    # Εμφάνιση Αποτελεσμάτων Ανάλυσης
-                    st.success("✅ Η ανάλυση ολοκληρώθηκε επιτυχώς!")
-                    st.write(f"🏢 **Εταιρεία:** {data.get('company_name')}")
-                    st.write(f"🌐 **Domain:** {data.get('company_domain')}")
-                    st.write(f"📝 **Σύνοψη:** {data.get('summary')}")
-                    
-                    match_status = data.get('has_match', 0)
-                    
-                    # Αν έχουμε Match, τρέχουμε το Apollo API αυτόματα
-                    if match_status == 1:
-                        st.balloons()
-                        st.info("🎯 **Βρέθηκε Match!** Ξεκινάει η αυτόματη αναζήτηση στελεχών στο Apollo...")
-                        
-                        # Ρόλοι που μας ενδιαφέρουν για HR/Hiring
-                        target_roles = ["Recruiter", "HR Manager", "Talent Acquisition", "Human Resources"]
-                        company_domain = data.get('company_domain', '')
-                        
-                        apollo_results = search_apollo_contacts(company_domain, target_roles)
-                        
-                        contacts_found = []
-                        if apollo_results and "contacts" in apollo_results:
-                            st.subheader("👥 Στελέχη που βρέθηκαν από το Apollo API:")
-                            for contact in apollo_results["contacts"]:
-                                name = contact.get("name", "N/A")
-                                title = contact.get("title", "N/A")
-                                email = contact.get("email", "🔒 Κρυμμένο/Μη διαθέσιμο")
-                                
-                                st.write(f"👤 **{name}** - {title} ({email})")
-                                contacts_found.append(f"{name} ({title}) -> {email}")
-                        else:
-                            st.warning("⚠️ Δεν βρέθηκαν άμεσα διαθέσιμα στελέχη με email για αυτό το domain στο Apollo.")
-                        
-                        # Αποθήκευση στη Βάση Δεδομένων
-                        conn = sqlite3.connect("does4u_leads.db")
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            INSERT INTO leads (company_name, summary, link, email_content, has_match)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (
-                            data.get('company_name'), 
-                            data.get('summary'), 
-                            xing_url, 
-                            " | ".join(contacts_found) if contacts_found else "No contacts found", 
-                            1
-                        ))
-                        conn.commit()
-                        conn.close()
-                        st.success("💾 Το lead και τα emails αποθηκεύτηκαν στη βάση δεδομένων `does4u_leads.db`!")
-                        
-                    else:
-                        st.warning("😴 Η αγγελία δεν πληροί τα κριτήρια strict match. Προσπεράστηκε.")
-                        
-                except Exception as e:
-                    st.error(f"❌ Σφάλμα επεξεργασίας AI ή JSON: {e}")
-
-# 6. Εμφάνιση του Ιστορικού από τη Βάση Δεδομένων στο κάτω μέρος
-st.markdown("---")
-st.subheader("🗄️ Ιστορικό Leads στη Βάση Δεδομένων")
-try:
+def save_lead(company, title, summary, link, email_content, has_match):
     conn = sqlite3.connect("does4u_leads.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT id, company_name, summary, link, email_content, timestamp FROM leads WHERE has_match=1 ORDER BY id DESC")
-    rows = cursor.fetchall()
+    cursor.execute("SELECT id FROM leads WHERE link = ?", (link,))
+    exists = cursor.fetchone()
+    if not exists:
+        cursor.execute("""
+            INSERT INTO leads (company, title, summary, link, email_content, has_match)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (company, title, summary, link, email_content, has_match))
+        conn.commit()
     conn.close()
+
+def get_last_50_leads():
+    conn = sqlite3.connect("does4u_leads.db")
+    df = pd.read_sql_query("SELECT company, title, summary, link, email_content, has_match, timestamp FROM leads ORDER BY id DESC LIMIT 50", conn)
+    conn.close()
+    return df
+
+init_db()
+
+XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20freelance"
+
+col_actions, col_history = st.columns([1, 1])
+
+with col_actions:
+    st.subheader("🎯 Νέο Σκανάρισμα")
     
-    if rows:
-        for row in rows:
-            with st.expander(f"🏢 {row[1]} ({row[5]})"):
-                st.write(f"🔗 **Link:** {row[3]}")
-                st.write(f"📝 **Σύνοψη:** {row[2]}")
-                st.write(f"📧 **Στελέχη / Emails:** {row[4]}")
+    if st.button("🚀 ΕΝΑΡΞΗ ΑΥΣΤΗΡΟΥ MATCH v0.0.9"):
+        try:
+            JINA_API_KEY = st.secrets["JINA_API_KEY"]
+            OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+            
+            st.write("📡 Η Jina AI φέρνει τα δεδομένα από το Xing...")
+            jina_endpoint = f"https://r.jina.ai/{XING_TARGET_URL}"
+            headers = {"Authorization": f"Bearer {JINA_API_KEY}", "X-Return-Format": "markdown"}
+            response = requests.get(jina_endpoint, headers=headers)
+            
+            if response.status_code == 200:
+                raw_markdown = response.text
+                with st.spinner("Το GPT-4o-mini ελέγχει για σίγουρα Matches..."):
+                    openai_client = OpenAI(api_key=OPENAI_API_KEY)
+                    
+                    prompt = """
+                    Ανάλυσε το Markdown του Xing για Python Freelance/One-off projects.
+                    
+                    ΚΑΝΟΝΑΣ MATCHING:
+                    1. Αν βρεις το ακριβές όνομα της εταιρείας ή το όνομα του recruiter, βάλε "has_match": 1 και γράψε ένα έτοιμο Cold Email στα Αγγλικά στο πεδίο "ready_email_en".
+                    2. Αν το όνομα της εταιρείας είναι κρυφό, ανώνυμο ή γράφει απλώς "Recruiting Agency" χωρίς όνομα, βάλε "has_match": 0 και στο πεδίο "ready_email_en" γράψε ΜΟΝΟ τη λέξη "NO_MATCH".
+                    
+                    Επέστρεψε ΑΥΣΤΗΡΑ JSON:
+                    {
+                        "leads": [
+                            {
+                                "title_gr": "Τίτλος",
+                                "client_company_keyword": "Όνομα Εταιρείας ή Ν/Α",
+                                "project_link": "Link",
+                                "summary_gr": "Σύνοψη στα Ελληνικά",
+                                "has_match": 1,
+                                "ready_email_en": "Email ή NO_MATCH"
+                            }
+                        ]
+                    }
+                    """
+                    
+                    ai_response = openai_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        response_format={"type": "json_object"},
+                        messages=[{"role": "user", "content": f"{prompt}\n\nΚείμενο:\n{raw_markdown}"}],
+                        temperature=0.1
+                    )
+                    
+                    ai_data = json.loads(ai_response.choices[0].message.content)
+                    leads_list = ai_data.get("leads", [])
+                    
+                    if len(leads_list) > 0:
+                        for lead in leads_list:
+                            save_lead(
+                                lead['client_company_keyword'],
+                                lead['title_gr'],
+                                lead['summary_gr'],
+                                lead['project_link'],
+                                lead['ready_email_en'],
+                                lead['has_match']
+                            )
+                        st.success(f"🔥 Φιλτράρισμα ολοκληρώθηκε! Ανανέωση ιστορικού...")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Δεν βρέθηκαν νέα projects.")
+            else:
+                st.error(f"❌ Σφάλμα Jina API: {response.status_code}")
+                
+        except KeyError:
+            st.error("🚨 Λείπουν τα κλειδιά από τα Secrets!")
+
+# --- ΕΜΦΑΝΙΣΗ ΙΣΤΟΡΙΚΟΥ ΜΕ ΦΙΛΤΡΟ MATCH ---
+with col_history:
+    st.subheader("🗄️ Ιστορικό Leads & Έτοιμα Drafts")
+    history_df = get_last_50_leads()
+    
+    if history_df.empty:
+        st.info("Η βάση είναι άδεια.")
     else:
-        st.write("Η βάση δεδομένων είναι προσωρινά άδεια ή δεν υπάρχουν matches ακόμα.")
-except Exception as e:
-    st.write("Δεν βρέθηκαν προηγούμενα δεδομένα.")
+        csv = history_df.to_csv(index=False).encode('utf-8')
+        st.download_button(label="📥 Download CSV", data=csv, file_name="leads.csv", mime="text/csv")
+        st.markdown("---")
+        
+        for idx, row in history_df.iterrows():
+            # Δημιουργούμε σήμανση στον τίτλο για το αν υπάρχει Match
+            match_status = "✅ MATCHED" if int(row['has_match']) == 1 else "⚠️ NO CONTACT"
+            
+            with st.expander(f"[{match_status}] {row['company']} - {row['title']}"):
+                st.write(f"**Σύνοψη (GR):** {row['summary']}")
+                st.markdown(f"[🔗 Link Αγγελίας]({row['link']})")
+                
+                # ΚΡΙΣΙΜΟΣ ΕΛΕΓΧΟΣ: Εμφάνιση email ΜΟΝΟ αν υπάρχει Match
+                if int(row['has_match']) == 1 and row['email_content'] != "NO_MATCH":
+                    st.markdown("### ✉️ Έτοιμο Cold Email:")
+                    st.text_area("Copy Email:", value=row['email_content'], height=180, key=f"hist_{idx}")
+                else:
+                    st.warning("🔒 Το email δεν δημιουργήθηκε επειδή δεν εντοπίστηκε καθαρή εταιρεία/επαφή για Match.")
