@@ -4,148 +4,159 @@ from openai import OpenAI
 import json
 import sqlite3
 import pandas as pd
+import urllib.parse
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Strict Match v0.0.9", page_icon="🎯", layout="wide")
-st.title("🎯 Does4U Strict Match & Draft v0.0.9")
+st.set_page_config(page_title="Does4U - All Matches v0.0.14", page_icon="🎯", layout="wide")
+st.title("🎯 Does4U Omni-Source Sniper v0.0.14")
+st.subheader("Συνδυασμένα αποτελέσματα από Xing και X (Twitter) στον ίδιο πίνακα")
 
-# --- ΒΑΣΗ ΔΕΔΟΜΕΝΩΝ (SQLite) ---
+# --- ΚΟΙΝΗ ΒΑΣΗ ΔΕΔΟΜΕΝΩΝ ---
+DB_FILE = "does4u_all_matches.db"
+
 def init_db():
-    conn = sqlite3.connect("does4u_leads.db")
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS leads (
+        CREATE TABLE IF NOT EXISTS matches (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT,
             company TEXT,
             title TEXT,
             summary TEXT,
             link TEXT,
-            email_content TEXT,
-            has_match INTEGER DEFAULT 0,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
     conn.close()
 
-def save_lead(company, title, summary, link, email_content, has_match):
-    conn = sqlite3.connect("does4u_leads.db")
+def save_match(source, company, title, summary, link):
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM leads WHERE link = ?", (link,))
+    # Έλεγχος μοναδικότητας βάσει link για να μην έχουμε ποτέ διπλότυπα
+    cursor.execute("SELECT id FROM matches WHERE link = ?", (link,))
     exists = cursor.fetchone()
     if not exists:
         cursor.execute("""
-            INSERT INTO leads (company, title, summary, link, email_content, has_match)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (company, title, summary, link, email_content, has_match))
+            INSERT INTO matches (source, company, title, summary, link)
+            VALUES (?, ?, ?, ?, ?)
+        """, (source, company, title, summary, link))
         conn.commit()
-    conn.close()
+        return True
+    return False
 
-def get_last_50_leads():
-    conn = sqlite3.connect("does4u_leads.db")
-    df = pd.read_sql_query("SELECT company, title, summary, link, email_content, has_match, timestamp FROM leads ORDER BY id DESC LIMIT 50", conn)
+def get_last_50_matches():
+    conn = sqlite3.connect(DB_FILE)
+    df = pd.read_sql_query("""
+        SELECT source AS 'Πηγή',
+               company AS 'Εταιρεία / User', 
+               title AS 'Τίτλος / Θέμα', 
+               summary AS 'Σύνοψη (GR)', 
+               link AS 'Link Αγγελίας', 
+               timestamp AS 'Ώρα Καταγραφής' 
+        FROM matches 
+        ORDER BY id DESC LIMIT 50
+    """, conn)
     conn.close()
     return df
 
+# Αρχικοποίηση της κοινής βάσης
 init_db()
 
-XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20freelance"
+# URLs Αναζήτησης
+XING_URL = "https://www.xing.com/jobs/search?keywords=python%20freelance"
+TWITTER_SEARCH_QUERY = 'site:x.com "python freelance" OR "looking for python developer" OR "need a python script"'
+X_GOOGLE_URL = f"https://www.google.com/search?q={urllib.parse.quote(TWITTER_SEARCH_QUERY)}&tbs=qdr:w"
 
-col_actions, col_history = st.columns([1, 1])
+col_actions, col_history = st.columns([1, 2])
 
 with col_actions:
-    st.subheader("🎯 Νέο Σκανάρισμα")
+    st.subheader("🎯 Επιλογή Σκαναρίσματος")
+    st.caption("Πάτα το αντίστοιχο κουμπί για να τρέξει το σκανάρισμα της πηγής που θες.")
     
-    if st.button("🚀 ΕΝΑΡΞΗ ΑΥΣΤΗΡΟΥ MATCH v0.0.9"):
+    # --- ΚΟΥΜΠΙ 1: XING ---
+    if st.button("🇩🇪 Σκανάρισμα XING"):
         try:
             JINA_API_KEY = st.secrets["JINA_API_KEY"]
             OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
             
-            st.write("📡 Η Jina AI φέρνει τα δεδομένα από το Xing...")
-            jina_endpoint = f"https://r.jina.ai/{XING_TARGET_URL}"
-            headers = {"Authorization": f"Bearer {JINA_API_KEY}", "X-Return-Format": "markdown"}
-            response = requests.get(jina_endpoint, headers=headers)
+            st.write("📡 Η Jina AI σκανάρει το Xing...")
+            response = requests.get(f"https://r.jina.ai/{XING_URL}", headers={"Authorization": f"Bearer {JINA_API_KEY}", "X-Return-Format": "markdown"})
             
             if response.status_code == 200:
-                raw_markdown = response.text
-                with st.spinner("Το GPT-4o-mini ελέγχει για σίγουρα Matches..."):
+                with st.spinner("Το GPT αναλύει τα δεδομένα του Xing..."):
                     openai_client = OpenAI(api_key=OPENAI_API_KEY)
-                    
-                    prompt = """
-                    Ανάλυσε το Markdown του Xing για Python Freelance/One-off projects.
-                    
-                    ΚΑΝΟΝΑΣ MATCHING:
-                    1. Αν βρεις το ακριβές όνομα της εταιρείας ή το όνομα του recruiter, βάλε "has_match": 1 και γράψε ένα έτοιμο Cold Email στα Αγγλικά στο πεδίο "ready_email_en".
-                    2. Αν το όνομα της εταιρείας είναι κρυφό, ανώνυμο ή γράφει απλώς "Recruiting Agency" χωρίς όνομα, βάλε "has_match": 0 και στο πεδίο "ready_email_en" γράψε ΜΟΝΟ τη λέξη "NO_MATCH".
-                    
-                    Επέστρεψε ΑΥΣΤΗΡΑ JSON:
-                    {
-                        "leads": [
-                            {
-                                "title_gr": "Τίτλος",
-                                "client_company_keyword": "Όνομα Εταιρείας ή Ν/Α",
-                                "project_link": "Link",
-                                "summary_gr": "Σύνοψη στα Ελληνικά",
-                                "has_match": 1,
-                                "ready_email_en": "Email ή NO_MATCH"
-                            }
-                        ]
-                    }
-                    """
-                    
+                    prompt = "Analyse the text for Python Freelance projects. We ONLY want matches with a specific company name. Return STRICT JSON: {'matches': [{'title_gr': 'Title', 'client_company_keyword': 'Company', 'project_link': 'Link', 'summary_gr': 'Summary'}]}"
                     ai_response = openai_client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        response_format={"type": "json_object"},
-                        messages=[{"role": "user", "content": f"{prompt}\n\nΚείμενο:\n{raw_markdown}"}],
-                        temperature=0.1
+                        model="gpt-4o-mini", response_format={"type": "json_object"},
+                        messages=[{"role": "user", "content": f"{prompt}\n\nΚείμενο:\n{response.text}"}], temperature=0.1
                     )
+                    matches = json.loads(ai_response.choices[0].message.content).get("matches", [])
                     
-                    ai_data = json.loads(ai_response.choices[0].message.content)
-                    leads_list = ai_data.get("leads", [])
+                    saved = 0
+                    for item in matches:
+                        # Αποθήκευση με ένδειξη "XING"
+                        if save_match("XING", item['client_company_keyword'], item['title_gr'], item['summary_gr'], item['project_link']): 
+                            saved += 1
+                    st.success(f"🔥 Xing: Αποθηκεύτηκαν {saved} νέα matches!")
+                    st.rerun()
+        except Exception as e: st.error(f"🚨 Σφάλμα Xing: {e}")
+            
+    st.markdown("---")
+    
+    # --- ΚΟΥΜΠΙ 2: X (TWITTER) ---
+    if st.button("🐦 Σκανάρισμα X (TWITTER)"):
+        try:
+            JINA_API_KEY = st.secrets["JINA_API_KEY"]
+            OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+            
+            st.write("📡 Η Jina AI σκανάρει τη Google για πρόσφατα Tweets...")
+            response = requests.get(f"https://r.jina.ai/{X_GOOGLE_URL}", headers={"Authorization": f"Bearer {JINA_API_KEY}", "X-Return-Format": "markdown"})
+            
+            if response.status_code == 200:
+                with st.spinner("Το GPT απομονώνει valid tweets..."):
+                    openai_client = OpenAI(api_key=OPENAI_API_KEY)
+                    prompt = """
+                    Ανάλυσε το κείμενο. Ψάχνουμε για πραγματικά Tweets στο x.com από άτομα που ζητάνε Python Developers, Scripts, Automation ή Scraping.
+                    Θέλουμε μόνο tweets με συγκεκριμένο χρήστη (π.χ. @Username ή το όνομά του).
+                    Επέστρεψε ΑΥΣΤΗΡΑ JSON: 
+                    {'matches': [{'title_gr': 'Τίτλος', 'client_company_keyword': '@Username', 'project_link': 'Link στο x.com', 'summary_gr': 'Σύνοψη'}]}
+                    """
+                    ai_response = openai_client.chat.completions.create(
+                        model="gpt-4o-mini", response_format={"type": "json_object"},
+                        messages=[{"role": "user", "content": f"{prompt}\n\nΚείμενο:\n{response.text}"}], temperature=0.1
+                    )
+                    matches = json.loads(ai_response.choices[0].message.content).get("matches", [])
                     
-                    if len(leads_list) > 0:
-                        for lead in leads_list:
-                            save_lead(
-                                lead['client_company_keyword'],
-                                lead['title_gr'],
-                                lead['summary_gr'],
-                                lead['project_link'],
-                                lead['ready_email_en'],
-                                lead['has_match']
-                            )
-                        st.success(f"🔥 Φιλτράρισμα ολοκληρώθηκε! Ανανέωση ιστορικού...")
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ Δεν βρέθηκαν νέα projects.")
+                    saved = 0
+                    for item in matches:
+                        # Αποθήκευση με ένδειξη "X (Twitter)"
+                        if save_match("X (Twitter)", item['client_company_keyword'], item['title_gr'], item['summary_gr'], item['project_link']): 
+                            saved += 1
+                    st.success(f"🔥 X (Twitter): Αποθηκεύτηκαν {saved} νέα matches!")
+                    st.rerun()
             else:
                 st.error(f"❌ Σφάλμα Jina API: {response.status_code}")
-                
-        except KeyError:
-            st.error("🚨 Λείπουν τα κλειδιά από τα Secrets!")
+        except Exception as e: st.error(f"🚨 Σφάλμα Twitter: {e}")
 
-# --- ΕΜΦΑΝΙΣΗ ΙΣΤΟΡΙΚΟΥ ΜΕ ΦΙΛΤΡΟ MATCH ---
+# --- ΕΜΦΑΝΙΣΗ ΕΝΙΑΙΟΥ ΠΙΝΑΚΑ ΙΣΤΟΡΙΚΟΥ ---
 with col_history:
-    st.subheader("🗄️ Ιστορικό Leads & Έτοιμα Drafts")
-    history_df = get_last_50_leads()
+    st.subheader("🗄️ Συγκεντρωτικός Πίνακας Matches")
+    df_history = get_last_50_matches()
     
-    if history_df.empty:
-        st.info("Η βάση είναι άδεια.")
+    if df_history.empty:
+        st.info("Η βάση δεδομένων είναι άδεια. Επίλεξε μια πηγή από αριστερά για να ξεκινήσεις!")
     else:
-        csv = history_df.to_csv(index=False).encode('utf-8')
-        st.download_button(label="📥 Download CSV", data=csv, file_name="leads.csv", mime="text/csv")
+        csv = df_history.to_csv(index=False).encode('utf-8')
+        st.download_button(label="📥 Κατέβασε τη βάση σε CSV (Excel)", data=csv, file_name="all_matches.csv", mime="text/csv")
         st.markdown("---")
         
-        for idx, row in history_df.iterrows():
-            # Δημιουργούμε σήμανση στον τίτλο για το αν υπάρχει Match
-            match_status = "✅ MATCHED" if int(row['has_match']) == 1 else "⚠️ NO CONTACT"
-            
-            with st.expander(f"[{match_status}] {row['company']} - {row['title']}"):
-                st.write(f"**Σύνοψη (GR):** {row['summary']}")
-                st.markdown(f"[🔗 Link Αγγελίας]({row['link']})")
-                
-                # ΚΡΙΣΙΜΟΣ ΕΛΕΓΧΟΣ: Εμφάνιση email ΜΟΝΟ αν υπάρχει Match
-                if int(row['has_match']) == 1 and row['email_content'] != "NO_MATCH":
-                    st.markdown("### ✉️ Έτοιμο Cold Email:")
-                    st.text_area("Copy Email:", value=row['email_content'], height=180, key=f"hist_{idx}")
-                else:
-                    st.warning("🔒 Το email δεν δημιουργήθηκε επειδή δεν εντοπίστηκε καθαρή εταιρεία/επαφή για Match.")
+        # Ο πίνακας δείχνει πλέον στην πρώτη στήλη αν το lead ήρθε από XING ή X (Twitter)
+        st.dataframe(
+            df_history, 
+            use_container_width=True,
+            column_config={
+                "Link Αγγελίας": st.column_config.LinkColumn("Link Αγγελίας")
+            }
+        )
