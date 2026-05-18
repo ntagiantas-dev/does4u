@@ -7,3 +7,5 @@ python-docx
 reportlab
 pillow
 praw
+requests
+beautifulsoup4
