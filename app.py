@@ -1,159 +1,94 @@
 import streamlit as st
+import openai
 import requests
-from openai import OpenAI
 import json
-import sqlite3
-import pandas as pd
+import re
 
-# Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Xing Sniper v0.0.19", page_icon="🎯", layout="wide")
-st.title("🎯 Does4U Xing Sniper v0.0.19")
-st.subheader("Η επιτυχημένη έκδοση (9/9 Matches) - Μόνο Πίνακας")
+# Ρύθμιση της σελίδας Streamlit
+st.set_page_config(page_title="Does4U - Xing Sniper v0.0.20", page_icon="🎯", layout="wide")
 
-# --- ΒΑΣΗ ΔΕΔΟΜΕΝΩΝ (Αποκλειστικά για Xing Matches) ---
-DB_FILE = "does4u_xing_success.db"
+st.title("🎯 Does4U - Xing Sniper v0.0.20")
+st.subheader("Αυτοματοποιημένη Εύρεση Εταιρειών & Στελεχών μέσω AI & Apollo API")
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS leads (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            company TEXT,
-            title TEXT,
-            summary TEXT,
-            link TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
+# 1. Έλεγχος και Φόρτωση των Keys από τα Secrets του Streamlit
+if "OPENAI_API_KEY" in st.secrets:
+    openai.api_key = st.secrets["OPENAI_API_KEY"]
+else:
+    st.error("❌ Το OpenAI API Key λείπει από τα Secrets!")
+    st.stop()
 
-def save_lead(company, title, summary, link):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    # Έλεγχος για διπλότυπα βάσει link
-    cursor.execute("SELECT id FROM leads WHERE link = ?", (link,))
-    exists = cursor.fetchone()
-    if not exists:
-        cursor.execute("""
-            INSERT INTO leads (company, title, summary, link)
-            VALUES (?, ?, ?, ?)
-        """, (company, title, summary, link))
-        conn.commit()
-        return True
-    return False
+if "APOLLO_API_KEY" in st.secrets:
+    APOLLO_KEY = st.secrets["APOLLO_API_KEY"]
+else:
+    st.error("❌ Το Apollo API Key λείπει από τα Secrets!")
+    st.stop()
 
-def get_last_50_leads():
-    conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql_query("""
-        SELECT company AS 'Εταιρεία', 
-               title AS 'Τίτλος Project', 
-               summary AS 'Σύνοψη (GR)', 
-               link AS 'Link Αγγελίας', 
-               timestamp AS 'Ημ/νία Καταγραφής' 
-        FROM leads 
-        ORDER BY id DESC LIMIT 50
-    """, conn)
-    conn.close()
-    return df
+JINA_KEY = st.secrets.get("JINA_API_KEY", "")
 
-# Αρχικοποίηση της βάσης
-init_db()
-
-XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20freelance"
-
-col_actions, col_history = st.columns([1, 2])
-
-with col_actions:
-    st.subheader("🎯 Νέο Σκανάρισμα")
+# 2. Βοηθητική Λειτουργία για το Apollo API (Αναζήτηση Ανθρώπων/Emails)
+def search_apollo_contacts(company_name, target_roles):
+    """
+    Κάνει αναζήτηση στο Apollo API για την εύρεση στελεχών βάσει εταιρείας και ρόλων.
+    """
+    url = "https://api.apollo.io/v1/contacts/search"
     
-    if st.button("🚀 ΕΝΑΡΞΗ ΑΥΣΤΗΡΟΥ MATCH"):
-        try:
-            JINA_API_KEY = st.secrets["JINA_API_KEY"]
-            OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-            
-            st.write("📡 Η Jina AI φέρνει τα δεδομένα από το Xing...")
-            jina_endpoint = f"https://r.jina.ai/{XING_TARGET_URL}"
-            headers = {"Authorization": f"Bearer {JINA_API_KEY}", "X-Return-Format": "markdown"}
-            response = requests.get(jina_endpoint, headers=headers)
-            
-            if response.status_code == 200:
-                raw_markdown = response.text
-                with st.spinner("Το GPT-4o-mini φιλτράρει με το επιτυχημένο prompt..."):
-                    openai_client = OpenAI(api_key=OPENAI_API_KEY)
-                    
-                    # Εδώ είναι το ακριβές prompt που σου έβγαλε τα 9 matches!
-                    prompt = """
-                    Ανάλυσε το Markdown του Xing για Python Freelance/One-off projects.
-                    
-                    ΚΑΝΟΝΑΣ MATCHING:
-                    1. Αν βρεις το ακριβές όνομα της εταιρείας ή το όνομα του recruiter, βάλε "has_match": 1.
-                    2. Αν το όνομα της εταιρείας είναι κρυφό, ανώνυμο ή γράφει απλώς "Recruiting Agency" χωρίς όνομα, βάλε "has_match": 0.
-                    
-                    Επέστρεψε ΑΥΣΤΗΡΑ JSON:
-                    {
-                        "leads": [
-                            {
-                                "title_gr": "Τίτλος στα Ελληνικά",
-                                "client_company_keyword": "Όνομα Εταιρείας",
-                                "project_link": "Link αγγελίας",
-                                "summary_gr": "Σύνοψη στα Ελληνικά",
-                                "has_match": 1
-                            }
-                        ]
-                    }
-                    """
-                    
-                    ai_response = openai_client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        response_format={"type": "json_object"},
-                        messages=[{"role": "user", "content": f"{prompt}\n\nΚείμενο:\n{raw_markdown}"}],
-                        temperature=0.1
-                    )
-                    
-                    ai_data = json.loads(ai_response.choices[0].message.content)
-                    leads_list = ai_data.get("leads", [])
-                    
-                    saved_count = 0
-                    for lead in leads_list:
-                        # Κρατάμε ΜΟΝΟ όσα έχουν has_match == 1 (Αυστηρό φιλτράρισμα στην πράξη!)
-                        if int(lead.get('has_match', 0)) == 1:
-                            was_saved = save_lead(
-                                lead['client_company_keyword'],
-                                lead['title_gr'],
-                                lead['summary_gr'],
-                                lead['project_link']
-                            )
-                            if was_saved:
-                                saved_count += 1
-                                
-                    if saved_count > 0:
-                        st.success(f"🔥 Βρέθηκαν και αποθηκεύτηκαν {saved_count} νέα καθαρά Matches!")
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ Δεν βρέθηκαν νέα matches που να μην υπάρχουν ήδη στη βάση.")
-            else:
-                st.error(f"❌ Σφάλμα Jina API: {response.status_code}")
-                
-        except Exception as e:
-            st.error(f"🚨 Κάτι πήγε στραβά: {e}")
-
-# --- ΕΜΦΑΝΙΣΗ ΚΑΘΑΡΟΥ ΠΙΝΑΚΑ ΙΣΤΟΡΙΚΟΥ (ΔΕΞΙΑ) ---
-with col_history:
-    st.subheader("🗄️ Πίνακας Ιστορικού (Μόνο Matches)")
-    df_history = get_last_50_leads()
+    headers = {
+        "Cache-Control": "no-cache",
+        "Content-Type": "application/json",
+        "X-Api-Key": APOLLO_KEY
+    }
     
-    if df_history.empty:
-        st.info("Η βάση δεδομένων είναι έτοιμη και άδεια. Κάνε ένα σκανάρισμα αριστερά!")
+    payload = {
+        "q_organization_domains": company_name, # Ψάχνει με βάση το όνομα/domain της εταιρείας
+        "person_titles": target_roles,           # Λίστα με τους τίτλους που θέλουμε (π.χ. ['HR', 'Recruiter'])
+        "page": 1,
+        "per_page": 5
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.warning(f"⚠️ Το Apollo API επέστρεψε σφάλμα {response.status_code}: {response.text}")
+            return None
+    except Exception as e:
+        st.error(f"❌ Σφάλμα κατά την κλήση του Apollo API: {e}")
+        return None
+
+# 3. Κύριο UI της Εφαρμογής
+target_url = st.text_input("🔗 Εισάγετε το URL της εταιρείας (ή το όνομα της εταιρείας):", placeholder="e.g. google.com ή MyCompany")
+
+if st.button("🚀 Έναρξη Στόχευσης & Σύνδεσης"):
+    if not target_url:
+        st.warning("⚠️ Παρακαλώ εισάγετε ένα URL ή όνομα εταιρείας πρώτα.")
     else:
-        csv = df_history.to_csv(index=False).encode('utf-8')
-        st.download_button(label="📥 Download CSV (Excel)", data=csv, file_name="xing_pure_matches.csv", mime="text/csv")
-        
-        st.dataframe(
-            df_history, 
-            use_container_width=True,
-            column_config={
-                "Link Αγγελίας": st.column_config.LinkColumn("Link Αγγελίας")
-            }
-        )
+        with st.spinner("🧠 Το GPT αναλύει τον στόχο και το Apollo ψάχνει για emails..."):
+            
+            # Βήμα A: Καθαρισμός του ονόματος της εταιρείας από το URL
+            domain_clean = target_url.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0]
+            
+            # Βήμα B: Το GPT αποφασίζει ποιους ρόλους πρέπει να ψάξουμε στο Apollo
+            prompt_roles = f"Based on the company '{domain_clean}', we want to target people responsible for hiring or business decisions (e.g., HR, Recruiter, Talent Acquisition, CEO, Founder). Output ONLY a valid JSON list of 3-4 keywords/titles in English. Example: [\"Recruiter\", \"HR Manager\", \"Talent Acquisition\"]."
+            
+            try:
+                client = openai.OpenAI(api_key=openai.api_key)
+                response_gpt = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt_roles}],
+                    temperature=0.3
+                )
+                
+                gpt_out = response_gpt.choices[0].message.content.strip()
+                # Καθαρισμός του output σε περίπτωση που το GPT βάλει markdown code blocks
+                if "```json" in gpt_out:
+                    gpt_out = gpt_out.split("```json")[1].split("```")[0].strip()
+                elif "```" in gpt_out:
+                    gpt_out = gpt_out.split("```")[1].split("```")[0].strip()
+                
+                target_roles = json.loads(gpt_out)
+                
+                st.info(f"🔍 **Το GPT πρότεινε τους εξής ρόλους στόχευσης:** {', '.join(target_roles)}")
+                
+            except Exception as e:
+                st.warning("⚠️ Αποτυχία αυτόματης εξαγωγής ρόλων από το GPT. Θα χρησιμοποιηθούν default
