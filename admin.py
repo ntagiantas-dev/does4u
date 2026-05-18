@@ -32,21 +32,56 @@ with admin_tab1:
     st.title("🎯 Does4U Content Pack Generator (Admin Panel)")
     st.write("Δημιουργήστε και εγκρίνετε στρατηγικά άρθρα για το Tech & Growth Blog σας.")
 
-    # 1. Μηχανή Παραγωγής Άρθρων
-    # 1. Μηχανή Παραγωγής Άρθρων (Αναβαθμισμένη με Advanced Domain Filtering)
-    def generate_strategic_article(category, target):
-        if category == "💻 Python & AI Updates":
-            logic = "Elite SaaS Engineer & Python Developer. Focus: Clean code, web scraping, automation frameworks, APIs, technical accuracy."
-            query = f"{target} release updates documentation 2026"
-            img_path = "blog_images/tech_default.jpg"
-            # 🎯 ΟΡΙΖΟΥΜΕ ΕΙΔΙΚΑ DOMAINS ΓΙΑ TECH & AI
-            domains_to_search = ["python.org", "anthropic.com", "googleblog.com", "openai.com", "github.com", "stackoverflow.com"]
-        else:  # 📈 Growth Hacking
-            logic = "Disruptive Growth Hacker & Automation Expert. Focus: High ROI, lead generation, scraping competitors, growth strategies."
-            query = f"Growth hacking automation {target} tools tactical guide 2026"
-            img_path = "blog_images/growth_default.jpg"
-            # 🎯 ΟΡΙΖΟΥΜΕ ΕΙΔΙΚΑ DOMAINS ΓΙΑ MARKETING & GROWTH
-            domains_to_search = ["techcrunch.com", "indiehackers.com", "producthunt.com", "medium.com"]
+
+#==================================================
+# 🧠 ΜΗΧΑΝΗ ΠΑΡΑΓΩΓΗΣ ΑΡΘΡΩΝ (GROWTH HACKING ONLY)
+# =================================================
+def generate_strategic_article(category, target):
+    # Enterprise Prompt εστιασμένο αποκλειστικά σε Business Automation & Growth
+    logic = "Disruptive Growth Hacker & B2B Automation Expert. Focus: Maximum ROI, saving time, and automated lead generation."
+    query = f"Growth hacking automation {target} lead generation tools business systems 2026"
+    img_path = "blog_images/growth_default.jpg"
+
+    with st.spinner("🕵️‍♂️ Η Does4U αναλύει τις παγκόσμιες πηγές Growth Hacking..."):
+        try:
+            # Ζωντανή αναζήτηση μέσω Tavily για να πιάσουμε τα πιο hot trends του 2026
+            search = tavily.search(query=query, search_depth="advanced", max_results=3)
+            
+            # Σύνταξη από το GPT-4o με focus στο να «κλείσει» τον πελάτη
+            prompt = f"""
+            Role: {logic}
+            Task: Write a high-converting, premium business article based on this target topic: '{target}'.
+            
+            STRATEGIC WRITING RULES:
+            1. Tone: Authoritative, energetic, and highly professional. Speak directly to Business Owners, Founders, and CEOs.
+            2. Language: Greek (Ελληνικά).
+            3. NO COMPLICATED CODE: Focus on the business logic, the strategy, and the software tools (e.g., Zapier, Make, HubSpot, AI Agents), NOT raw coding. Do not write complex scripts that can break.
+            4. ROI Driven: Explain exactly how much time or money the business owner will save by implementing this.
+            
+            Structure:
+            - Mind-blowing, Premium Title (Focus on growth/automation)
+            - The Problem (Why manual work is killing their margins in 2026)
+            - The Automated Strategy (Step-by-step how the system works conceptually)
+            - Real-World Business Benefits (Time saved, leads generated)
+            - High-Ticket Call to Action (CTA): A paragraph urging the reader to book a free automation audit with the Does4U team to build this system for them.
+            
+            Return the final output in clean, beautifully formatted Markdown.
+            """
+            
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": f"You are a master of content marketing. Context from web search: {str(search)}"},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            
+            article_content = response.choices[0].message.content
+            return article_content, img_path
+            
+        except Exception as e:
+            st.error(f"Σφάλμα κατά την παραγωγή: {e}")
+            return None, None
 
         with st.spinner("🕵️ Η Does4U σκανάρει στοχευμένα τα επίσημα Tech Domains..."):
             try:
