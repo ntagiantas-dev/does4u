@@ -5,9 +5,9 @@ import json
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Lead Hunter", page_icon="⚡", layout="wide")
-st.title("⚡ Does4U High-Yield Lead Hunter v8.0")
-st.subheader("Σύστημα Ευρείας Αναζήτησης & Deep AI Φιλτραρίσματος")
+st.set_page_config(page_title="Does4U - Lead Prospector", page_icon="⚡", layout="wide")
+st.title("⚡ Does4U Job Prospector & Keyword Extractor v12.0")
+st.subheader("Στάδιο 1: Αυστηρό Φιλτράρισμα Αγγελιών & Εξαγωγή Keywords για Email Finder")
 
 # Διάβασμα των κλειδιών από τα Secrets του Streamlit Cloud
 try:
@@ -17,20 +17,18 @@ except KeyError:
     st.error("🚨 Σφάλμα: Δεν βρέθηκαν τα κλειδιά στα Secrets του Streamlit Cloud!")
     st.stop()
 
-st.info("🎯 **Στόχος:** Το Bot σκανάρει το web για: *Web Scraping, AI Automations, Python Scripts, SaaS Engineering*.")
+st.info("🎯 **Στόχος:** Το Bot εντοπίζει αγγελίες για Python, Scraping, AI & SaaS. Αν είναι match, εξάγει τα Keywords της εταιρείας για να τα χρησιμοποιήσουμε στο εργαλείο εύρεσης email.")
 
-if st.button("🚀 ΕΝΑΡΞΗ ΑΥΤΟΜΑΤΟΥ ΚΥΝΗΓΙΟΥ"):
-    with st.spinner("Το Firecrawl συλλέγει δεδομένα και το GPT-4o-mini φιλτράρει αυστηρά..."):
+if st.button("🚀 ΕΝΑΡΞΗ ΑΝΑΖΗΤΗΣΗΣ & ΕΞΑΓΩΓΗΣ KEYWORDS"):
+    with st.spinner("Σκανάρω το web και το GPT απομονώνει αγγελίες και εταιρικά Keywords..."):
         try:
             firecrawl_app = FirecrawlApp(api_key=FIRECRAWL_API_KEY)
             openai_client = OpenAI(api_key=OPENAI_API_KEY)
             
-            # Απλό και καθαρό query για να μην κολλάει η μηχανή αναζήτησης
-            # Ψάχνει άμεση ζήτηση για τις υπηρεσίες σας
-            clean_query = '"looking for python developer" OR "hiring web scraping" OR "need AI automation"'
+            # Καθαρό search query για να φέρουμε αγγελίες προγραμματισμού
+            search_query = '("web scraping" OR "Python automation" OR "AI automation" OR "SaaS developer") ("hiring" OR "looking for freelancer" OR "job opening") -inurl:blog -inurl:tutorial'
             
-            # Ζητάμε 15 αποτελέσματα για να έχουμε μεγάλο δείγμα
-            search_result = firecrawl_app.search(clean_query, limit=15)
+            search_result = firecrawl_app.search(search_query, limit=12)
             
             raw_results = []
             if hasattr(search_result, 'data') and search_result.data:
@@ -43,75 +41,76 @@ if st.button("🚀 ΕΝΑΡΞΗ ΑΥΤΟΜΑΤΟΥ ΚΥΝΗΓΙΟΥ"):
                 raw_results = getattr(search_result, 'results', [])
 
             if not raw_results:
-                st.warning("Το Firecrawl δεν επέστρεψε δεδομένα. Δοκίμασε να ξαναπατήσεις το κουμπί.")
+                st.warning("Δεν βρέθηκαν αποτελέσματα. Δοκίμασε ξανά σε λίγο.")
             else:
                 leads_list = []
                 
                 for item in raw_results:
                     url = getattr(item, 'url', '')
-                    content = getattr(item, 'markdown', '')[:3500] if getattr(item, 'markdown', '') else ''
+                    content = getattr(item, 'markdown', '')[:4000] if getattr(item, 'markdown', '') else ''
                     
-                    if not content or len(content).strip() < 150:
+                    if not content or len(content).strip() < 200:
                         continue
                         
-                    # Το GPT αναλαμβάνει όλο το φιλτράρισμα και τη μετάφραση
+                    # Το GPT εδώ λειτουργεί ως Data Extractor
                     prompt = f"""
-                    Είσαι ο αυστηρός Lead Qualifier της Does4U (SaaS & AI Automation Studio).
-                    Εξέτασε το παρακάτω κείμενο από το internet.
+                    Είσαι ο Lead Qualifier της Does4U. Εξετάζεις το κείμενο μιας σελίδας για να δεις αν είναι αγγελία που μας ενδιαφέρει.
+                    
+                    Κριτήριο Match: Πρέπει να είναι πραγματική αγγελία ή ζήτηση για Python, Scraping, SaaS ή Automations.
                     
                     Αποστολή σου:
-                    1. ΕΛΕΓΧΟΣ MATCH: Είναι αυτό το κείμενο ΠΡΑΓΜΑΤΙΚΗ αγγελία, project ή post όπου κάποιος ψάχνει developer/freelancer για Python, Scraping, AI ή SaaS; Αν είναι άρθρο, οδηγός, tutorial ή άσχετο, βάλε "is_match": false.
-                    2. ΜΕΤΑΦΡΑΣΗ: Αν είναι match, μετάφρασε τον Τίτλο και γράψε μια σύντομη σύνοψη στα ΕΛΛΗΝΙΚΑ.
-                    3. EMAIL: Ψάξε για email επικοινωνίας. Αν δεν υπάρχει, γράψε "Δεν βρέθηκε".
-                    4. COLD EMAIL: Γράψε ένα επαγγελματικό email εκ μέρους της Does4U στα Αγγλικά.
+                    1. Έλεγξε αν είναι match (is_match: true/false).
+                    2. Αν είναι match, μετάφρασε τον Τίτλο στα ΕΛΛΗΝΙΚΑ.
+                    3. Εντόπισε και εξέδωσε τα KEYWORDS της εταιρείας που χρειάζονται για να βρούμε το email της με άλλα εργαλεία (Όνομα Εταιρείας, Domain/Site αν αναφέρεται, Όνομα Recruiter/Hiring Manager αν υπάρχει).
                     
-                    Επέστρεψε ΑΥΣΤΗΡΑ ΜΟΝΟ ένα έγκυρο JSON αντικείμενο:
+                    Επέστρεψε ΑΥΣΤΗΡΑ ΜΟΝΟ ένα JSON:
                     {{
                         "is_match": true ή false,
-                        "translated_title": "Ο τίτλος στα Ελληνικά",
-                        "summary_greek": "Σύνοψη στα Ελληνικά",
-                        "email": "το email ή Δεν βρέθηκε",
-                        "generated_email": "Το cold email"
+                        "title_gr": "Ο τίτλος στα Ελληνικά",
+                        "company_name": "Το όνομα της εταιρείας που προσλαμβάνει",
+                        "company_domain": "Το website της εταιρείας (αν υπάρχει, αλλιώς κενό)",
+                        "recruiter_name": "Όνομα υπευθύνου (αν αναφέρεται, αλλιώς κενό)",
+                        "requirements_summary": "1 πρόταση στα Ελληνικά για το τι ζητάνε"
                     }}
-                    
-                    Κείμενο:
-                    {content}
                     """
                     
                     response = openai_client.chat.completions.create(
                         model="gpt-4o-mini",
                         response_format={"type": "json_object"},
-                        messages=[{"role": "user", "content": prompt}],
+                        messages=[
+                            {"role": "system", "content": "Return only valid JSON."},
+                            {"role": "user", "content": f"{prompt}\n\nΚείμενο:\n{content}"}
+                        ],
                         temperature=0.1
                     )
                     
                     ai_data = json.loads(response.choices[0].message.content)
                     
-                    # Αν το AI πει ότι είναι σκουπίδι/άρθρο, το πετάμε
-                    if ai_data.get("is_match") is not True:
+                    # Κρατάμε ΜΟΝΟ τις πραγματικές αγγελίες
+                    if ai_data.get("is_match") is not True or not ai_data.get("company_name"):
                         continue
                         
                     leads_list.append({
-                        "Τίτλος (Ελληνικά)": ai_data.get("translated_title"),
-                        "Τι Ζητάνε (Σύνοψη)": ai_data.get("summary_greek"),
-                        "Email Επικοινωνίας": ai_data.get("email"),
-                        "Σύνδεσμος (URL)": url,
-                        "Έτοιμο Email Does4U": ai_data.get("generated_email")
+                        "Θέση (Ελληνικά)": ai_data.get("title_gr"),
+                        "Εταιρεία (Keyword 1)": ai_data.get("company_name"),
+                        "Website (Keyword 2)": ai_data.get("company_domain") if ai_data.get("company_domain") else "Δεν αναφέρεται",
+                        "Υπεύθυνος (Keyword 3)": ai_data.get("recruiter_name") if ai_data.get("recruiter_name") else "Δεν αναφέρεται",
+                        "Τι Ζητάνε": ai_data.get("requirements_summary"),
+                        "Σύνδεσμος Αγγελίας": url
                     })
                 
-                # Εμφάνιση
+                # Εμφάνιση αποτελεσμάτων
                 if len(leads_list) == 0:
-                    st.info("⚠️ Το Firecrawl βρήκε σελίδες, αλλά το AI τις απέρριψε όλες ως 'μη-αγγελίες' (blogs/tutorials). Ο πίνακας έμεινε καθαρός!")
+                    st.warning("⚠️ Δεν βρέθηκαν καθαρές αγγελίες που να ταιριάζουν στα κριτήρια της Does4U αυτή τη στιγμή.")
                 else:
                     df = pd.DataFrame(leads_list)
-                    st.success(f"🎯 Βρέθηκαν {len(df)} πραγματικά leads!")
-                    st.dataframe(df[["Τίτλος (Ελληνικά)", "Τι Ζητάνε (Σύνοψη)", "Email Επικοινωνίας", "Σύνδεσμος (URL)"]], use_container_width=True)
+                    st.success(f"🎯 Βρέθηκαν {len(df)} επιβεβαιωμένες αγγελίες! Τα Keywords εξήχθησαν και είναι έτοιμα:")
                     
-                    st.markdown("### 📝 Έτοιμα Emails προς Αντιγραφή:")
-                    for idx, row in df.iterrows():
-                        with st.expander(f"✉️ Pitch για: {row['Τίτλος (Ελληνικά)']} ({row['Email Επικοινωνίας']})"):
-                            st.text_area("Κείμενο Email:", row['Έτοιμο Email Does4U'], height=250, key=f"txt_{idx}")
-                            st.caption(f"Πηγή: {row['Σύνδεσμος (URL)']}")
+                    # Εμφάνιση του πίνακα με τα Keywords
+                    st.dataframe(df, use_container_width=True)
+                    
+                    st.info("💡 **Επόμενο Βήμα (Στάδιο 2):** Παίρνουμε τις τιμές από τις στήλες 'Εταιρεία' και 'Website' και τις περνάμε στο API εύρεσης email για να κάνουμε το Match.")
                             
         except Exception as e:
-            st.error(f"Παρουσιάστηκε σφάλμα: {e}")
+            st.error(f"Σφάλμα: {e}")
+            
