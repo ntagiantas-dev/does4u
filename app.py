@@ -30,8 +30,8 @@ if st.button("🚀 Έναρξη Κυνηγιού"):
                 firecrawl_app = FirecrawlApp(api_key=FIRECRAWL_API_KEY)
                 openai_client = OpenAI(api_key=OPENAI_API_KEY)
                 
-                # Αναζήτηση με Firecrawl (φέρνουμε τα top 4 αποτελέσματα)
-                search_result = firecrawl_app.search(query, params={"limit": 4})
+                # Αναζήτηση με Firecrawl (φέρνουμε τα top 5 αποτελέσματα)
+                search_result = firecrawl_app.search(query)
                 
                 if not search_result.get("data"):
                     st.warning("Δεν βρέθηκαν αποτελέσματα.")
