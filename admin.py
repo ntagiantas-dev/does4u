@@ -71,7 +71,39 @@ with admin_tab1:
             if content:
                 st.markdown("### 📝 Παραγωγή Draft")
                 st.markdown(content)
-                st.success("Το άρθρο είναι έτοιμο για έλεγχο!")
+                
+                # Κουμπί έγκρισης που εμφανίζεται ΜΟΝΟ αν παραχθεί κείμενο
+                if st.button("✅ Έγκριση & Live Δημοσίευση στο Blog"):
+                    import json
+                    from datetime import datetime
+                    
+                    # Δημιουργία του νέου άρθρου σε σωστή δομή
+                    new_article = {
+                        "title": target if "How to" not in target else "Αυτοματοποιημένο B2B Outreach με AI",
+                        "date": datetime.now().strftime("%d/%m/%Y"),
+                        "category": "Growth Hacking & Automations",
+                        "content": content,
+                        "image": img
+                    }
+                    
+                    # Διάβασμα των παλιών και προσθήκη του νέου
+                    data_file = "blog_data.json"
+                    try:
+                        if os.path.exists(data_file):
+                            with open(data_file, "r", encoding="utf-8") as f:
+                                articles = json.load(f)
+                        else:
+                            articles = []
+                    except:
+                        articles = []
+                        
+                    articles.insert(0, new_article) # Το βάζει πρώτο-πρώτο
+                    
+                    # Αποθήκευση πίσω στο αρχείο
+                    with open(data_file, "w", encoding="utf-8") as f:
+                        json.dump(articles, f, ensure_ascii=False, indent=4)
+                        
+                    st.success("🎉 Το άρθρο δημοσιεύτηκε ΕΠΙΤΥΧΩΣ! Κάνε push για να φανεί στο live blog σου!")
         else:
             st.warning("Παρακαλώ εισάγετε ένα θέμα στόχευσης.")
 
