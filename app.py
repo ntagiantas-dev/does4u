@@ -1,14 +1,13 @@
 import streamlit as st
-# 🔥 ΕΙΣΑΓΩΓΗ ΤΗΣ ΣΩΣΤΗΣ ΒΙΒΛΙΟΘΗΚΗΣ ΣΥΜΦΩΝΑ ΜΕ ΤΟ OFFICIAL DOCS
 from firecrawl import Firecrawl
 from openai import OpenAI
 import json
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Full Lead Prospector", page_icon="💰", layout="wide")
-st.title("💰 Does4U Full-Scale Lead Prospector v19.0")
-st.subheader("Στάδιο 1: Καθαρό Scraping & Keywords Extraction από Upwork & Freelancer")
+st.set_page_config(page_title="Does4U - Lead Volume Engine", page_icon="📈", layout="wide")
+st.title("📈 Does4U Lead Volume Engine v22.0")
+st.subheader("Στάδιο 1: Μαζικό Scraping από 5 Πηγές για Εξαγωγή Συγκεκριμένων Keywords")
 
 # Διάβασμα των κλειδιών από τα Secrets του Streamlit Cloud
 try:
@@ -18,34 +17,28 @@ except KeyError:
     st.error("🚨 Σφάλμα: Δεν βρέθηκαν τα κλειδιά στα Secrets του Streamlit Cloud!")
     st.stop()
 
-st.markdown("""
-### 📊 Προδιαγραφές Συστήματος:
-* **Πηγές:** Freelancer.com & Upwork (Search Pages)
-* **Tech Stack Φίλτρου:** Python, Web Scraping, Data Extraction, AI Automations, Bots, SaaS Engineering
-* **Ηλικία Αγγελίας:** Αυστηρά λιγότερο από 5 ημέρες
-""")
-
-if st.button("🚀 ΕΝΑΡΞΗ ΠΛΗΡΟΥΣ ΜΑΖΙΚΗΣ ΣΥΛΛΟΓΗΣ"):
-    with st.spinner("Το Firecrawl σκανάρει παράλληλα τις πλατφόρμες..."):
+if st.button("🔥 ΕΝΑΡΞΗ ΜΑΖΙΚΗΣ ΣΥΛΛΟΓΗΣ ΑΠΟ 5 ΠΛΑΤΦΟΡΜΕΣ"):
+    with st.spinner("Το Firecrawl σκανάρει και τις 5 πλατφόρμες για να πιάσουμε τον στόχο..."):
         
         try:
-            # 🔥 ΑΡΧΙΚΟΠΟΙΗΣΗ ΜΕ ΤΟ ΣΩΣΤΟ ΑΝΤΙΚΕΙΜΕΝΟ ΤΟΥ SDK
             firecrawl_app = Firecrawl(api_key=FIRECRAWL_API_KEY)
             openai_client = OpenAI(api_key=OPENAI_API_KEY)
             
-            # Λίστα με τα URLs
+            # 🌐 ΟΙ 5 ΕΣΤΙΑΣΜΕΝΕΣ ΠΗΓΕΣ ΓΙΑ ΜΕΓΙΣΤΟ ΟΓΚΟ
             targets = [
+                {"platform": "Upwork", "url": "https://www.upwork.com/nx/search/jobs/?q=python%20scraping"},
                 {"platform": "Freelancer", "url": "https://www.freelancer.com/jobs/python"},
-                {"platform": "Upwork", "url": "https://www.upwork.com/nx/search/jobs/?q=python%20scraping"}
+                {"platform": "Fiverr", "url": "https://www.fiverr.com/search/gigs?query=python%20automation"},
+                {"platform": "WeWorkRemotely", "url": "https://weworkremotely.com/categories/remote-programming-jobs"},
+                {"platform": "RemoteOK", "url": "https://remoteok.com/remote-python-jobs"}
             ]
             
             all_raw_content = ""
             
-            # Scrape όλων των πηγών
+            # Σαρώνομαι όλες τις πηγές
             for target in targets:
                 try:
-                    st.write(f"📡 Σύνδεση με {target['platform']}...")
-                    # 🔥 Χρήση της επίσημης μεθόδου .scrape με παραμετροποίηση formats
+                    st.write(f"📡 Σύνδεση με: **{target['platform']}**...")
                     scrape_result = firecrawl_app.scrape(target['url'], formats=['markdown'])
                     
                     if isinstance(scrape_result, dict):
@@ -53,55 +46,51 @@ if st.button("🚀 ΕΝΑΡΞΗ ΠΛΗΡΟΥΣ ΜΑΖΙΚΗΣ ΣΥΛΛΟΓΗΣ")
                     else:
                         page_text = getattr(scrape_result, 'markdown', '')
                     
-                    if page_text:
+                    if page_text and len(page_text).strip() > 200:
                         all_raw_content += f"\n\n--- DATA FROM {target['platform']} ---\n\n" + page_text
                         st.write(f"✅ Λήφθηκαν δεδομένα από {target['platform']}.")
                     else:
-                        st.write(f"⚠️ Η σελίδα του {target['platform']} επέστρεψε κενό κείμενο.")
+                        st.write(f"⚠️ Το {target['platform']} δεν επέστρεψε επαρκές κείμενο (πιθανό block).")
                 except Exception as e:
-                    st.write(f"❌ Αποτυχία scraping στο {target['platform']}: {e}")
+                    st.write(f"❌ Αποτυχία στο {target['platform']}: {e}")
 
             if not all_raw_content.strip():
-                st.error("🚨 Δεν μαζεύτηκαν δεδομένα από καμία πλατφόρμα. Το Firecrawl έφαγε block ή οι σελίδες άλλαξαν δομή.")
+                st.error("🚨 Δεν μαζεύτηκαν δεδομένα από καμία πλατφόρμα. Όλες οι πηγές μπλόκαραν το scraping.")
             else:
-                with st.spinner("Το GPT-4o-mini αναλύει ολόκληρο το πακέτο δεδομένων χωρίς περικοπές..."):
+                with st.spinner("Το GPT-4o-mini εξάγει τα αυστηρά Keywords για τα 2 επόμενα εργαλεία..."):
                     
                     prompt = f"""
-                    Είσαι ο Lead Qualifier και Data Engineer της Does4U (SaaS & AI Automations Studio).
-                    Σου δίνω το πλήρες markdown κείμενο από τις σελίδες αγγελιών του Freelancer και του Upwork.
+                    Είσαι ο Data Extractor της Does4U. Σου δίνω το markdown κείμενο από 5 μεγάλες πλατφόρμες εύρεσης εργασίας.
                     
                     Αποστολή σου:
-                    1. ΦΙΛΤΡΟ ΧΡΟΝΟΥ: Έλεγξε πότε δημοσιεύτηκε το κάθε project. Κράτα ΜΟΝΟ όσα είναι έως 5 ημέρες παλιά (π.χ. "Today", "just now", "1 day ago", "3 days ago"). Οτιδήποτε παλαιότερο (π.χ. 6+ ημέρες, 2 εβδομάδες, 1 μήνα) ΠΕΤΑΞΕ ΤΟ.
-                    2. ΦΙΛΤΡΟ ΘΕΜΑΤΟΣ: Κράτα ΜΟΝΟ projects που ζητάνε Python scripts, Web Scraping, Data Extraction, Bots, AI Automations, OpenAI API integrations ή SaaS Web Apps.
-                    3. ΕΞΑΓΩΓΗ KEYWORDS: Για κάθε project που περνάει τα φίλτρα, εξήγαγε:
-                       - Το όνομα ή το username του Client/Εταιρείας (για να το δώσουμε στο επόμενο εργαλείο).
-                       - Το URL/Link της αγγελίας.
-                       - Τον τίτλο της θέσης μεταφρασμένο στα ΕΛΛΗΝΙΚΑ.
-                       - Μια σύντομη σύνοψη των τεχνικών απαιτήσεων στα ΕΛΛΗΝΙΚΑ.
+                    1. ΦΙΛΤΡΑΡΙΣΜΑ: Κράτα ΜΟΝΟ αγγελίες ή posts που ζητάνε Python, Web Scraping, Automations, Bots, AI ή SaaS και έχουν ηλικία έως 5 ημέρες.
+                    2. ΑΥΣΤΗΡΑ KEYWORDS: Για κάθε match, βρες και απομόνωσε ΜΟΝΟ τα στοιχεία που χρειάζονται για τα 2 εργαλεία ταυτοποίησης:
+                       - Αν πρόκειται για εταιρεία/job board: Βρες το καθαρό Όνομα Εταιρείας ή Όνομα Client (για το εργαλείο εταιρειών).
+                       - Αν πρόκειται για profile/user: Βρες το συγκεκριμένο Username ή ID του χρήστη (για το εργαλείο social).
+                    3. Μην βάζεις όριο στο πόσα αποτελέσματα θα φέρεις. Φέρε ΟΣΑ περισσότερα βρεις μέσα στο κείμενο για να πιάσουμε τον στόχο των 10+.
                     
-                    Επέστρεψε ΑΥΣΤΗΡΑ ΚΑΙ ΜΟΝΟ ένα έγκυρο JSON αντικείμενο με τη μορφή λίστας "leads", ακολουθώντας ακριβώς αυτή τη δομή:
+                    Επέστρεψε ΑΥΣΤΗΡΑ ΚΑΙ ΜΟΝΟ ένα JSON αντικείμενο:
                     {{
                         "leads": [
                             {{
-                                "title_gr": "Ο τίτλος του project στα Ελληνικά",
-                                "client_keyword": "Το όνομα ή το username του client",
-                                "project_link": "Το URL της αγγελίας",
-                                "summary_gr": "Τι ακριβώς ζητάει ο πελάτης στα Ελληνικά",
-                                "posted_age": "Πότε δημοσιεύτηκε"
+                                "title_gr": "Ο τίτλος της αγγελίας στα Ελληνικά",
+                                "client_company_keyword": "Όνομα Εταιρείας ή Client (Αν δεν υπάρχει, γράψε Ν/Α)",
+                                "social_username_keyword": "Username ή ID χρήστη (Αν δεν υπάρχει, γράψε Ν/Α)",
+                                "source_platform": "Η πλατφόρμα προέλευσης (π.χ. Upwork, WeWorkRemotely κλπ)",
+                                "project_link": "Το link της αγγελίας",
+                                "summary_gr": "Τι ζητάει σύντομα στα Ελληνικά"
                             }}
                         ]
                     }}
-                    
-                    Αν δεν βρεις κανένα project που να ταιριάζει και στα δύο κριτήρια, επέστρεψε: {{"leads": []}}
-                    
-                    Κείμενο Προς Ανάλυση:
-                    {all_raw_content}
                     """
                     
                     response = openai_client.chat.completions.create(
                         model="gpt-4o-mini",
                         response_format={"type": "json_object"},
-                        messages=[{"role": "user", "content": prompt}],
+                        messages=[
+                            {"role": "system", "content": "You are a precise data extractor. Return only valid JSON."},
+                            {"role": "user", "content": f"{prompt}\n\nΚείμενο:\n{all_raw_content}"}
+                        ],
                         temperature=0.1
                     )
                     
@@ -109,14 +98,16 @@ if st.button("🚀 ΕΝΑΡΞΗ ΠΛΗΡΟΥΣ ΜΑΖΙΚΗΣ ΣΥΛΛΟΓΗΣ")
                     leads_list = ai_data.get("leads", [])
                     
                     if len(leads_list) == 0:
-                        st.warning("⚠️ Οι σελίδες σκανάρονταν με επιτυχία, αλλά το AI δεν βρήκε κανένα project για Python/Scraping που να είναι νεότερο των 5 ημερών αυτή τη στιγμή.")
+                        st.warning("⚠️ Το AI δεν εντόπισε κατάλληλα projects < 5 ημερών στο κείμενο αυτή τη στιγμή.")
                     else:
                         df = pd.DataFrame(leads_list)
-                        st.success(f"🎯 Επιτυχία! Το AI επεξεργάστηκε όλα τα δεδομένα και απομόνωσε {len(df)} ενεργά leads!")
+                        st.success(f"🎯 Επιτυχία! Εντοπίστηκαν {len(df)} leads από τις 5 πηγές!")
                         
-                        df.columns = ["Project (Ελληνικά)", "Client / Username (Keyword)", "Link Project", "Τι Ζητάνε (Σύνοψη)", "Ηλικία"]
-                        st.dataframe(df[["Project (Ελληνικά)", "Client / Username (Keyword)", "Ηλικία", "Τι Ζητάνε (Σύνοψη)", "Link Project"]], use_container_width=True)
-                        st.info("💡 **Έτοιμα για το Στάδιο 2:** Η λίστα με τα Keywords είναι έτοιμη για να τροφοδοτήσει το επόμενο εργαλείο εύρεσης email.")
+                        # Οργάνωση στηλών για τον πίνακα
+                        df.columns = ["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Πηγή", "Link", "Σύνοψη"]
+                        
+                        # Εμφάνιση του τελικού πίνακα
+                        st.dataframe(df[["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Πηγή", "Σύνοψη", "Link"]], use_container_width=True)
                         
         except Exception as main_e:
-            st.error(f"🚨 Γενικό Σφάλμα Εφαρμογής: {main_e}")
+            st.error(f"🚨 Σφάλμα συστήματος: {main_e}")
