@@ -2,110 +2,136 @@ import streamlit as st
 import requests
 from openai import OpenAI
 import json
+import sqlite3
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Lead Gen & Copywriter v0.0.6", page_icon="⚡", layout="wide")
-st.title("⚡ Does4U Lead Gen & Copywriter v0.0.6")
-st.subheader("Στάδιο 1 & 2: Συλλογή, Φιλτράρισμα & Έτοιμα Cold Emails")
+st.set_page_config(page_title="Does4U - Lead Sniper DB v0.0.7", page_icon="🗄️", layout="wide")
+st.title("🗄️ Does4U Lead Sniper με Μόνιμη Βάση Δεδομένων v0.0.7")
 
-# Έλεγχος και Διάβασμα των κλειδιών από τα Secrets
+# --- ΣΥΝΔΕΣΗ ΚΑΙ ΔΗΜΙΟΥΡΓΙΑ ΒΑΣΗΣ ΔΕΔΟΜΕΝΩΝ (SQLite) ---
+def init_db():
+    conn = sqlite3.connect("does4u_leads.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company TEXT,
+            title TEXT,
+            summary TEXT,
+            link TEXT,
+            email_content TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def save_lead(company, title, summary, link, email_content):
+    conn = sqlite3.connect("does4u_leads.db")
+    cursor = conn.cursor()
+    # Έλεγχος για να μην βάζουμε τα ίδια διπλά (duplicity check βάσει link)
+    cursor.execute("SELECT id FROM leads WHERE link = ?", (link,))
+    exists = cursor.fetchone()
+    if not exists:
+        cursor.execute("""
+            INSERT INTO leads (company, title, summary, link, email_content)
+            VALUES (?, ?, ?, ?, ?)
+        """, (company, title, summary, link, email_content))
+        conn.commit()
+    conn.close()
+
+def get_last_50_leads():
+    conn = sqlite3.connect("does4u_leads.db")
+    df = pd.read_sql_query("SELECT company, title, summary, link, email_content, timestamp FROM leads ORDER BY id DESC LIMIT 50", conn)
+    conn.close()
+    return df
+
+# Αρχικοποίηση της DB
+init_db()
+
+# --- ΚΥΡΙΩΣ ΕΦΑΡΜΟΓΗ ---
 try:
     JINA_API_KEY = st.secrets["JINA_API_KEY"]
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 except KeyError:
-    st.error("🚨 Σφάλμα: Λείπει το JINA_API_KEY ή το OPENAI_API_KEY από τα Secrets του Streamlit!")
+    st.error("🚨 Σφάλμα: Λείπει το JINA_API_KEY ή το OPENAI_API_KEY στα Secrets!")
     st.stop()
 
 XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20freelance"
 
-if st.button("🚀 ΕΝΑΡΞΗ ΠΛΗΡΟΥΣ ΑΥΤΟΜΑΤΙΣΜΟΥ v0.0.6"):
-    st.write("📡 Η Jina AI σκανάρει το Xing για Freelance/Junior ευκαιρίες...")
-    
-    try:
-        jina_endpoint = f"https://r.jina.ai/{XING_TARGET_URL}"
-        headers = {"Authorization": f"Bearer {JINA_API_KEY}", "X-Return-Format": "markdown"}
-        response = requests.get(jina_endpoint, headers=headers)
-        
-        if response.status_code != 200:
-            st.error(f"❌ Η Jina API απέτυχε με Status: {response.status_code}")
-        else:
-            raw_markdown = response.text
+col_actions, col_history = st.columns([1, 1])
+
+with col_actions:
+    st.subheader("🎯 Νέο Σκανάρισμα")
+    if st.button("🚀 ΕΝΑΡΞΗ & ΑΠΟΘΗΚΕΥΣΗ ΣΤΗ ΒΑΣΗ"):
+        st.write("📡 Η Jina AI σκανάρει το Xing...")
+        try:
+            jina_endpoint = f"https://r.jina.ai/{XING_TARGET_URL}"
+            headers = {"Authorization": f"Bearer {JINA_API_KEY}", "X-Return-Format": "markdown"}
+            response = requests.get(jina_endpoint, headers=headers)
             
-            if not raw_markdown or len(raw_markdown.strip()) < 200:
-                st.error("⚠️ Άδειο ή πολύ μικρό κείμενο επιστράφηκε από τη Jina.")
-            else:
-                st.success("✅ Τα δεδομένα του Xing λήφθηκαν επιτυχώς!")
-                
-                with st.spinner("Το GPT-4o-mini αναλύει, φιλτράρει και γράφει τα emails προσέγγισης..."):
+            if response.status_code == 200:
+                raw_markdown = response.text
+                with st.spinner("Το GPT-4o-mini δημιουργεί τα leads..."):
                     openai_client = OpenAI(api_key=OPENAI_API_KEY)
-                    
-                    # Ζητάμε από το AI να κάνει τη συλλογή ΚΑΙ το copywriting ταυτόχρονα
                     prompt = """
-                    Είσαι ο κορυφαίος Lead Generator και Cold Copywriter της Does4U. 
-                    Ψάξε στο Markdown κείμενο του Xing για projects Python (Freelance, Junior, One-off, fixed price).
-                    Αποκλεισέ και πέταξε στα σκουπίδια μόνιμες θέσεις εργασίας (Festanstellung, Vollzeit, μόνιμος υπάλληλος).
-                    
-                    Για κάθε κατάλληλο lead που βρίσκεις, θέλω να δημιουργήσεις ένα επαγγελματικό, σύντομο και ελκυστικό Cold Email στα Αγγλικά, με σκοπό να τους προσφέρεις τις υπηρεσίες μας (Python automation, Web Scraping, scripts) ως εξωτερικός συνεργάτης. Το email πρέπει να είναι έτοιμο για copy-paste, χωρίς placeholders (αν δεν ξέρεις το όνομα του υπεύθυνου, ξεκίνα με "Dear Hiring Team," ή "Hello,").
-                    
-                    Επέστρεψε ΑΥΣΤΗΡΑ ΚΑΙ ΜΟΝΟ ένα JSON αντικείμενο με αυτή τη δομή:
+                    Ψάξε στο Markdown για projects Python (Freelance, Junior, One-off, fixed price). Αποκλεισέ μόνιμες θέσεις.
+                    Γράψε ένα έτοιμο Cold Email στα Αγγλικά για κάθε εταιρεία.
+                    Επέστρεψε ΑΥΣΤΗΡΑ JSON:
                     {
                         "leads": [
-                            {
-                                "title_gr": "Ο τίτλος της αγγελίας στα Ελληνικά",
-                                "client_company_keyword": "Όνομα Εταιρείας",
-                                "project_link": "Το link της αγγελίας στο Xing",
-                                "summary_gr": "Τι συγκεκριμένο έργο ζητάνε να παραδοθεί (στα Ελληνικά)",
-                                "ready_email_en": "Το έτοιμο Cold Email στα Αγγλικά προσαρμοσμένο για αυτή την εταιρεία"
-                            }
+                            {"title_gr": "Τίτλος", "client_company_keyword": "Εταιρεία", "project_link": "Link", "summary_gr": "Σύνοψη", "ready_email_en": "Email"}
                         ]
                     }
                     """
-                    
                     ai_response = openai_client.chat.completions.create(
                         model="gpt-4o-mini",
                         response_format={"type": "json_object"},
-                        messages=[
-                            {"role": "system", "content": "You are a precise data extractor and business copywriter. Return only valid JSON."},
-                            {"role": "user", "content": f"{prompt}\n\nΚείμενο Xing:\n{raw_markdown}"}
-                        ],
+                        messages=[{"role": "user", "content": f"{prompt}\n\nΚείμενο:\n{raw_markdown}"}],
                         temperature=0.2
                     )
-                    
                     ai_data = json.loads(ai_response.choices[0].message.content)
                     leads_list = ai_data.get("leads", [])
                     
-                    if len(leads_list) == 0:
-                        st.warning("⚠️ Δεν βρέθηκαν One-Off/Freelance projects αυτή τη στιγμή στο Xing.")
+                    if len(leads_list) > 0:
+                        for lead in leads_list:
+                            save_lead(
+                                lead['client_company_keyword'],
+                                lead['title_gr'],
+                                lead['summary_gr'],
+                                lead['project_link'],
+                                lead['ready_email_en']
+                            )
+                        st.success(f"🔥 Βρέθηκαν και αποθηκεύτηκαν {len(leads_list)} νέα leads στη βάση!")
                     else:
-                        st.success(f"🔥 Επιτυχία! Βρέθηκαν {len(leads_list)} κατάλληλα leads!")
-                        
-                        # Δημιουργία καθαρού πίνακα για τον χρήστη
-                        for idx, lead in enumerate(leads_list):
-                            company = lead['client_company_keyword']
-                            title = lead['title_gr']
-                            summary = lead['summary_gr']
-                            link = lead['project_link']
-                            email_content = lead['ready_email_en']
-                            
-                            with st.expander(f"💼 {idx+1}. {company} - {title}"):
-                                col1, col2 = st.columns([1, 1])
-                                
-                                with col1:
-                                    st.markdown("#### 📑 Στοιχεία Αγγελίας (Ελληνικά)")
-                                    st.write(f"**Εταιρεία:** `{company}`")
-                                    st.write(f"**Τι ζητάνε:** {summary}")
-                                    st.markdown(f"[🔗 Δες την αγγελία στο Xing]({link})")
-                                
-                                with col2:
-                                    st.markdown("#### ✉️ Έτοιμο Cold Email (Αγγλικά)")
-                                    st.text_area(
-                                        label="Κάνε Copy-Paste το κείμενο:",
-                                        value=email_content,
-                                        height=250,
-                                        key=f"email_{idx}"
-                                    )
-                                    st.caption("💡 Μπορείς να αντιγράψεις αυτό το κείμενο και να το στείλεις μέσω Xing ή της φόρμας επικοινωνίας τους.")
-                                
-    except Exception as e:
-        st.error(f"🚨 Σφάλμα συστήματος: {e}")
+                        st.warning("⚠️ Δεν βρέθηκαν νέα one-off projects.")
+        except Exception as e:
+            st.error(f"🚨 Σφάλμα: {e}")
+
+# --- ΕΜΦΑΝΙΣΗ ΙΣΤΟΡΙΚΟΥ (ΔΕΞΙΑ ΣΤΗΝ ΟΘΟΝΗ) ---
+with col_history:
+    st.subheader("🗄️ Ιστορικό των Τελευταίων 50 Leads")
+    history_df = get_last_50_leads()
+    
+    if history_df.empty:
+        st.info("Η βάση δεδομένων είναι άδεια. Κάνε το πρώτο σκανάρισμα για να μαζέψεις δεδομένα!")
+    else:
+        # Κουμπί για κατέβασμα σε Excel/CSV
+        csv = history_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Κατέβασε όλη τη Βάση σε CSV (Excel)",
+            data=csv,
+            file_name="does4u_leads_history.csv",
+            mime="text/csv"
+        )
+        st.markdown("---")
+        
+        # Εμφάνιση των αποθηκευμένων leads με Expanders
+        for idx, row in history_df.iterrows():
+            with st.expander(f"🏢 {row['company']} - {row['title']}"):
+                st.write(f"**Ημερομηνία Καταγραφής:** {row['timestamp']}")
+                st.write(f"**Σύνοψη (GR):** {row['summary']}")
+                st.markdown(f"[🔗 Link Αγγελίας]({row['link']})")
+                st.markdown("**✉️ Έτοιμο Cold Email:**")
+                st.text_area("Copy Email:", value=row['email_content'], height=150, key=f"hist_{idx}")
