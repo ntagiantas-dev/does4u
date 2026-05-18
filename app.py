@@ -17,7 +17,7 @@ except KeyError:
     st.error("🚨 Σφάλμα: Λείπει το JINA_API_KEY ή το OPENAI_API_KEY από τα Secrets του Streamlit!")
     st.stop()
 
-# 🎯 ΝΕΟ URL: Στοχεύουμε ειδικά σε Freelance/Projekt κομμάτια στο Xing
+# 🎯 Στοχεύουμε στις Freelance ευκαιρίες του Xing
 XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20freelance"
 
 st.info(f"🎯 **Στόχος:** Αναζήτηση One-Off Projects στην πηγή: `{XING_TARGET_URL}`")
@@ -84,7 +84,7 @@ if st.button("🔥 ΕΝΑΡΞΗ ΦΙΛΤΡΑΡΙΣΜΑΤΟΣ JINA v0.0.4"):
                             {"role": "system", "content": "You are a data extraction bot filtering strictly for freelance, one-off projects. Return only valid JSON."},
                             {"role": "user", "content": f"{prompt}\n\nΚείμενο Xing:\n{raw_markdown}"}
                         ],
-                        temperature=0.1 # Χαμηλό temperature για μέγιστη ακρίβεια στα φίλτρα
+                        temperature=0.1
                     )
                     
                     ai_data = json.loads(ai_response.choices[0].message.content)
