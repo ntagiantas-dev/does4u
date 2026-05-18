@@ -5,9 +5,9 @@ import json
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Deal Hunter AI", page_icon="🎯", layout="wide")
-st.title("🎯 Deal Hunter AI v2.1")
-st.subheader("Αυτοματοποιημένο Κυνήγι Leads & Σύνταξη Emails μέσω Streamlit Cloud Secrets")
+st.set_page_config(page_title="Does4U - Deal Hunter", page_icon="⚡", layout="wide")
+st.title("🎯 Deal Hunter AI v2.2")
+st.subheader("Αυτοματοποιημένο Κυνήγι Leads & Σύνταξη Emails για τη Does4U")
 
 # Διάβασμα των κλειδιών από τα Secrets του Streamlit Cloud
 try:
@@ -31,24 +31,27 @@ if st.button("🚀 Έναρξη Κυνηγιού"):
                 openai_client = OpenAI(api_key=OPENAI_API_KEY)
                 
                 # Αναζήτηση με Firecrawl (φέρνουμε τα top 5 αποτελέσματα)
-                search_result = firecrawl_app.search(query)
+                search_result = firecrawl_app.search(query, limit=5)
                 
-                if not search_result.get("data"):
+                # Έλεγχος αν υπάρχουν δεδομένα στη νέα μορφή της βιβλιοθήκης
+                if not search_result.data:
                     st.warning("Δεν βρέθηκαν αποτελέσματα.")
                 else:
                     leads_list = []
                     
-                    for item in search_result.get("data", []):
-                        title = item.get('title', 'Αγγελία χωρίς τίτλο')
-                        url = item.get('url')
-                        content = item.get('markdown', '')[:3000]
+                    for item in search_result.data:
+                        # Στη νέα έκδοση, τα πεδία διαβάζονται ως attributes (με τελεία)
+                        title = getattr(item, 'title', 'Αγγελία χωρίς τίτλο') or 'Αγγελία χωρίς τίτλο'
+                        url = getattr(item, 'url', '')
+                        content = getattr(item, 'markdown', '')[:3000] if getattr(item, 'markdown', '') else ''
                         
-                        # Prompt για JSON Mode
+                        # Prompt για JSON Mode (ειδικά προσαρμοσμένο για τη Does4U)
                         prompt = f"""
+                        Είσαι ένας κορυφαίος Expert πωλήσεων στην εταιρεία Does4U (SaaS Engineering & AI Automation Studio).
                         Διάβασε το κείμενο αυτής της αγγελίας και επέστρεψε ΜΟΝΟ ένα έγκυρο JSON αντικείμενο (χωρίς markdown code blocks ή άλλες επεξηγήσεις) με τα εξής ακριβώς πεδία:
                         - "email": Το email επικοινωνίας που βρήκες. Αν δεν υπάρχει, γράψε "Δεν βρέθηκε".
-                        - "lead_quality": Αξιολόγησε από "High", "Medium", "Low" το πόσο ταιριάζει η αγγελία.
-                        - "generated_email": Γράψε ένα σύντομο, άκρως επαγγελματικό cold email (στα Ελληνικά αν η αγγελία είναι ελληνική, στα Αγγλικά αν είναι ξένη) που προσφέρει λύσεις Scraping/Bots/AI βασισμένο στις ανάγκες τους.
+                        - "lead_quality": Αξιολόγησε από "High", "Medium", "Low" το πόσο ταιριάζει η αγγελία στις υπηρεσίες μας.
+                        - "generated_email": Γράψε ένα σύντομο, άκρως επαγγελματικό cold email (στα Ελληνικά αν η αγγελία είναι ελληνική, στα Αγγλικά αν είναι ξένη) εκ μέρους της Does4U που προσφέρει λύσεις SaaS, Scraping, Bots ή AI βασισμένο στις συγκεκριμένες ανάγκες τους.
                         
                         Κείμενο αγγελίας:
                         {content}
