@@ -17,11 +17,6 @@ st.sidebar.header("🎯 Φίλτρα Αναζήτησης")
 keyword = st.sidebar.text_input("Τι ψάχνεις; (π.χ. Web Design, Python, E-commerce)", "Web Design")
 city = st.sidebar.text_input("Πόλη / Περιοχή (π.χ. Munich, Vienna, Berlin)", "Munich")
 
-st.sidebar.subheader("🔑 Ρυθμίσεις OpenAI API")
-# Σου έβαλα πεδίο για να βάζεις το κλειδί σου εύκολα. 
-# Μπορείς επίσης να το καρφώσεις στον κώδικα αν θες: client = OpenAI(api_key="ΤΟ_ΚΛΕΙΔΙ_ΣΟΥ")
-openai_key = st.sidebar.text_input("OpenAI API Key:", type="password")
-
 st.sidebar.subheader("🤖 GPT Προσφορά (Pitch)")
 user_pitch = st.sidebar.text_area(
     "Γράψε την προσφορά σου στα Ελληνικά:", 
@@ -30,6 +25,7 @@ user_pitch = st.sidebar.text_area(
 
 # --- ΣΥΝΑΡΤΗΣΗ SCRAPING (ΣΥΛΛΟΓΗ Leads ΣΤΟ ΠΑΡΑΣΚΗΝΙΟ) ---
 def fetch_xing_leads(keyword, city):
+    # Διορθώθηκε η σύνταξη ώστε η Google να μην μπερδεύεται με κόμματα
     search_query = f'site:xing.com/pages/ "{keyword}" "{city}"'
     encoded_query = urllib.parse.quote(search_query)
     url = f"https://www.google.com/search?q={encoded_query}"
@@ -56,7 +52,7 @@ def fetch_xing_leads(keyword, city):
                 snippet_div = g.find('div', class_='VwiC3b') # Το κείμενο περιγραφής της Google
                 
                 title = title_div.text if title_div else "Xing Company Page"
-                snippet = snippet_div.text if snippet_div else "Δεν υπάρχει διαθέσιμη περιγραφή."
+                snippet = snippet_div.text if snippet_div else "Δεν υπάρχει διαθέμιση περιγραφή."
                 
                 if "xing.com" in link:
                     leads.append({
@@ -73,12 +69,13 @@ def fetch_xing_leads(keyword, city):
 st.subheader("🚀 Μαζική Συλλογή & Αυτόματη Μετάφραση")
 st.write("Πατώντας το κουμπί, το bot θα μαζέψει τα leads και το GPT θα τα αναλύσει όλα μαζί ταυτόχρονα.")
 
-if st.button("🔥 Έναρξη Αυτόματης Διαδικασίας"):
-    if not openai_key:
-        st.error("⚠️ Παρακαλώ βάλε το OpenAI API Key σου στο αριστερό μενού για να γίνει η μετάφραση!")
-    else:
-        # Αρχικοποίηση OpenAI Client
-        client = OpenAI(api_key=openai_key)
+# Έλεγχος αν το OPENAI_API_KEY υπάρχει στα Secrets του Streamlit Cloud
+if "OPENAI_API_KEY" not in st.secrets:
+    st.error("❌ Το 'OPENAI_API_KEY' δεν βρέθηκε στα Secrets του Streamlit! Παρακαλώ πρόσθεσέ το στα Advanced Settings του Dashboard σου.")
+else:
+    if st.button("🔥 Έναρξη Αυτόματης Διαδικασίας"):
+        # Αρχικοποίηση OpenAI Client αυτόματα από τα Secrets
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         
         # Βήμα 1: Συλλογή
         with st.spinner("⏳ Βήμα 1: Συλλέγονται leads από το Xing μέσω Google..."):
@@ -94,22 +91,21 @@ if st.button("🔥 Έναρξη Αυτόματης Διαδικασίας"):
                 final_leads_list = []
                 
                 for idx, lead in enumerate(raw_results, 1):
-                    # Στήσιμο του prompt για το GPT για μαζική επεξεργασία του κάθε lead
+                    # Στήσιμο του prompt για το GPT
                     gpt_prompt = f"""
-                    Έχεις ένα lead από το Xing με τα εξής στοιχεία:
-                    Τίτλος: {lead['Τίτλος']}
-                    Γερμανικό Κείμενο/Περιγραφή: {lead['Γερμανική Περιγραφή']}
+Έχεις ένα lead από το Xing με τα εξής στοιχεία:
+Τίτλος: {lead['Τίτλος']}
+Γερμανικό Κείμενο/Περιγραφή: {lead['Γερμανική Περιγραφή']}
 
-                    Κάνε τα εξής 2 πράγματα:
-                    1. Μετάφρασε και εξήγησε σύντομα στα Ελληνικά (μέχρι 2 προτάσεις) τι κάνει αυτή η εταιρεία.
-                    2. Μετάφρασε το ακόλουθο ελληνικό μήνυμα προσφοράς σε άκρως επαγγελματικά Γερμανικά (χρησιμοποίησε ευγενικό πληθυντικό 'Sie'), προσαρμοσμένο για αυτή την εταιρεία:
-                    "{user_pitch}"
+Κάνε τα εξής 2 πράγματα:
+1. Μετάφρασε και εξήγησε σύντομα στα Ελληνικά (μέχρι 2 προτάσεις) τι κάνει αυτή η εταιρεία.
+2. Μετάφρασε το ακόλουθο ελληνικό μήνυμα προσφοράς σε άκρως επαγγελματικά Γερμανικά (χρησιμοποίησε ευγενικό πληθυντικό 'Sie'), προσαρμοσμένο για αυτή την εταιρεία:
+"{user_pitch}"
 
-                    Δώσε την απάντησή σου αυστηρά σε αυτή τη μορφή:
-                    ΜΕΤΑΦΡΑΣΗ: [Εδώ η ελληνική μετάφραση]
-                    ΜΗΝΥΜΑ: [Εδώ το γερμανικό μήνυμα pitch]
-                    """
-                    
+Δώσε την απάντησή σου αυστηρά σε αυτή τη μορφή:
+ΜΕΤΑΦΡΑΣΗ: [Εδώ η ελληνική μετάφραση]
+ΜΗΝΥΜΑ: [Εδώ το γερμανικό μήνυμα pitch]
+"""
                     try:
                         response = client.chat.completions.create(
                             model="gpt-4o-mini", # Οικονομικό και ταχύτατο
