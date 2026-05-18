@@ -1,12 +1,13 @@
 import streamlit as st
-from firecrawl import FirecrawlApp
+# 🔥 ΕΙΣΑΓΩΓΗ ΤΗΣ ΣΩΣΤΗΣ ΒΙΒΛΙΟΘΗΚΗΣ ΣΥΜΦΩΝΑ ΜΕ ΤΟ OFFICIAL DOCS
+from firecrawl import Firecrawl
 from openai import OpenAI
 import json
 import pandas as pd
 
 # Ρύθμιση Σελίδας
 st.set_page_config(page_title="Does4U - Full Lead Prospector", page_icon="💰", layout="wide")
-st.title("💰 Does4U Full-Scale Lead Prospector v18.0")
+st.title("💰 Does4U Full-Scale Lead Prospector v19.0")
 st.subheader("Στάδιο 1: Καθαρό Scraping & Keywords Extraction από Upwork & Freelancer")
 
 # Διάβασμα των κλειδιών από τα Secrets του Streamlit Cloud
@@ -27,44 +28,44 @@ st.markdown("""
 if st.button("🚀 ΕΝΑΡΞΗ ΠΛΗΡΟΥΣ ΜΑΖΙΚΗΣ ΣΥΛΛΟΓΗΣ"):
     with st.spinner("Το Firecrawl σκανάρει παράλληλα τις πλατφόρμες..."):
         
-        # Αρχικοποίηση των APIs
-        firecrawl_app = FirecrawlApp(api_key=FIRECRAWL_API_KEY)
-        openai_client = OpenAI(api_key=OPENAI_API_KEY)
-        
-        # Λίστα με τα URLs που θέλουμε να ξεσκονίσουμε
-        targets = [
-            {"platform": "Freelancer", "url": "https://www.freelancer.com/jobs/python"},
-            {"platform": "Upwork", "url": "https://www.upwork.com/nx/search/jobs/?q=python%20scraping"}
-        ]
-        
-        all_raw_content = ""
-        
-        # Scrape όλων των πηγών χωρίς εκπτώσεις
-        for target in targets:
-            try:
-                st.write(f"📡 Σύνδεση με {target['platform']}...")
-                # Χρήση της σωστής και επίσημης μεθόδου .scrape_page
-                scrape_result = firecrawl_app.scrape_page(target['url'], params={'formats': ['markdown']})
-                
-                if isinstance(scrape_result, dict):
-                    page_text = scrape_result.get("markdown", "")
-                else:
-                    page_text = getattr(scrape_result, 'markdown', '')
-                
-                if page_text:
-                    all_raw_content += f"\n\n--- DATA FROM {target['platform']} ---\n\n" + page_text
-                    st.write(f"✅ Λήφθηκαν δεδομένα από {target['platform']}.")
-                else:
-                    st.write(f"⚠️ Η σελίδα του {target['platform']} επέστρεψε κενό κείμενο.")
-            except Exception as e:
-                st.write(f"❌ Αποτυχία scraping στο {target['platform']}: {e}")
-
-        if not all_raw_content.strip():
-            st.error("🚨 Δεν μαζεύτηκαν δεδομένα από καμία πλατφόρμα. Το Firecrawl έφαγε block ή οι σελίδες άλλαξαν δομή.")
-        else:
-            with st.spinner("Το GPT-4o-mini αναλύει ολόκληρο το πακέτο δεδομένων χωρίς περικοπές..."):
+        try:
+            # 🔥 ΑΡΧΙΚΟΠΟΙΗΣΗ ΜΕ ΤΟ ΣΩΣΤΟ ΑΝΤΙΚΕΙΜΕΝΟ ΤΟΥ SDK
+            firecrawl_app = Firecrawl(api_key=FIRECRAWL_API_KEY)
+            openai_client = OpenAI(api_key=OPENAI_API_KEY)
+            
+            # Λίστα με τα URLs
+            targets = [
+                {"platform": "Freelancer", "url": "https://www.freelancer.com/jobs/python"},
+                {"platform": "Upwork", "url": "https://www.upwork.com/nx/search/jobs/?q=python%20scraping"}
+            ]
+            
+            all_raw_content = ""
+            
+            # Scrape όλων των πηγών
+            for target in targets:
                 try:
-                    # Το prompt απαιτεί full ανάλυση και επιστροφή καθαρού JSON πίνακα
+                    st.write(f"📡 Σύνδεση με {target['platform']}...")
+                    # 🔥 Χρήση της επίσημης μεθόδου .scrape με παραμετροποίηση formats
+                    scrape_result = firecrawl_app.scrape(target['url'], formats=['markdown'])
+                    
+                    if isinstance(scrape_result, dict):
+                        page_text = scrape_result.get("markdown", "")
+                    else:
+                        page_text = getattr(scrape_result, 'markdown', '')
+                    
+                    if page_text:
+                        all_raw_content += f"\n\n--- DATA FROM {target['platform']} ---\n\n" + page_text
+                        st.write(f"✅ Λήφθηκαν δεδομένα από {target['platform']}.")
+                    else:
+                        st.write(f"⚠️ Η σελίδα του {target['platform']} επέστρεψε κενό κείμενο.")
+                except Exception as e:
+                    st.write(f"❌ Αποτυχία scraping στο {target['platform']}: {e}")
+
+            if not all_raw_content.strip():
+                st.error("🚨 Δεν μαζεύτηκαν δεδομένα από καμία πλατφόρμα. Το Firecrawl έφαγε block ή οι σελίδες άλλαξαν δομή.")
+            else:
+                with st.spinner("Το GPT-4o-mini αναλύει ολόκληρο το πακέτο δεδομένων χωρίς περικοπές..."):
+                    
                     prompt = f"""
                     Είσαι ο Lead Qualifier και Data Engineer της Does4U (SaaS & AI Automations Studio).
                     Σου δίνω το πλήρες markdown κείμενο από τις σελίδες αγγελιών του Freelancer και του Upwork.
@@ -113,12 +114,9 @@ if st.button("🚀 ΕΝΑΡΞΗ ΠΛΗΡΟΥΣ ΜΑΖΙΚΗΣ ΣΥΛΛΟΓΗΣ")
                         df = pd.DataFrame(leads_list)
                         st.success(f"🎯 Επιτυχία! Το AI επεξεργάστηκε όλα τα δεδομένα και απομόνωσε {len(df)} ενεργά leads!")
                         
-                        # Μετονομασία στηλών για επαγγελματική εμφάνιση
                         df.columns = ["Project (Ελληνικά)", "Client / Username (Keyword)", "Link Project", "Τι Ζητάνε (Σύνοψη)", "Ηλικία"]
-                        
-                        # Εμφάνιση πίνακα
                         st.dataframe(df[["Project (Ελληνικά)", "Client / Username (Keyword)", "Ηλικία", "Τι Ζητάνε (Σύνοψη)", "Link Project"]], use_container_width=True)
                         st.info("💡 **Έτοιμα για το Στάδιο 2:** Η λίστα με τα Keywords είναι έτοιμη για να τροφοδοτήσει το επόμενο εργαλείο εύρεσης email.")
                         
-                except Exception as e:
-                    st.error(f"🚨 Σφάλμα κατά την ανάλυση του GPT: {e}")
+        except Exception as main_e:
+            st.error(f"🚨 Γενικό Σφάλμα Εφαρμογής: {main_e}")
