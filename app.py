@@ -5,9 +5,9 @@ import json
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Jina Xing Sniper v0.0.3", page_icon="🦊", layout="wide")
-st.title("🦊 Does4U Jina AI Xing Sniper v0.0.3")
-st.subheader("Στάδιο 1: Απομονωμένη Συλλογή Keywords από το Xing")
+st.set_page_config(page_title="Does4U - Fixed-Price Sniper v0.0.4", page_icon="🦊", layout="wide")
+st.title("🦊 Does4U Jina AI Fixed-Price Sniper v0.0.4")
+st.subheader("Στάδιο 1: Φιλτράρισμα για One-Off Projects (Παράδοση & Πληρωμή)")
 
 # Έλεγχος και Διάβασμα των κλειδιών από τα Secrets
 try:
@@ -17,16 +17,15 @@ except KeyError:
     st.error("🚨 Σφάλμα: Λείπει το JINA_API_KEY ή το OPENAI_API_KEY από τα Secrets του Streamlit!")
     st.stop()
 
-# Το στοχευμένο URL στο Xing για Python Remote εργασίες
-XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20remote"
+# 🎯 ΝΕΟ URL: Στοχεύουμε ειδικά σε Freelance/Projekt κομμάτια στο Xing
+XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20freelance"
 
-st.info(f"🎯 **Στόχος:** Σκανάρισμα της σελίδας: `{XING_TARGET_URL}`")
+st.info(f"🎯 **Στόχος:** Αναζήτηση One-Off Projects στην πηγή: `{XING_TARGET_URL}`")
 
-if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.3"):
-    st.write("📡 Η Jina AI χτυπάει το Xing... (Αναμονή για Markdown)")
+if st.button("🔥 ΕΝΑΡΞΗ ΦΙΛΤΡΑΡΙΣΜΑΤΟΣ JINA v0.0.4"):
+    st.write("📡 Η Jina AI σκανάρει το Xing για Freelance ευκαιρίες...")
     
     try:
-        # Κλήση στο Jina Reader API
         jina_endpoint = f"https://r.jina.ai/{XING_TARGET_URL}"
         headers = {
             "Authorization": f"Bearer {JINA_API_KEY}",
@@ -36,39 +35,43 @@ if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.3"):
         response = requests.get(jina_endpoint, headers=headers)
         
         if response.status_code != 200:
-            st.error(f"❌ Η Jina AI επέστρεψε σφάλμα συστήματος (Status Code: {response.status_code}). Μήνυμα: {response.text}")
+            st.error(f"❌ Η Jina AI επέστρεψε σφάλμα συστήματος (Status Code: {response.status_code}).")
         else:
             raw_markdown = response.text
             
-            # ΔΙΟΡΘΩΘΗΚΕ: Το .strip() μπήκε σωστά μέσα στο len()
             if not raw_markdown or len(raw_markdown.strip()) < 200:
-                st.error("⚠️ Το κείμενο που επέστρεψε η Jina είναι πολύ μικρό ή άδειο. Πιθανό block ασφαλείας από το Xing.")
-                st.code(raw_markdown[:500], language="markdown")
+                st.error("⚠️ Το κείμενο που επέστρεψε η Jina είναι πολύ μικρό ή άδειο.")
             else:
                 st.success(f"✅ Η Jina AI διάβασε τη σελίδα επιτυχώς ({len(raw_markdown)} χαρακτήρες)!")
                 
-                with st.spinner("Το GPT-4o-mini αναλύει το κείμενο για να απομονώσει τα Keywords..."):
+                with st.spinner("Το GPT-4o-mini ξεσκαρτάρει μόνιμες δουλειές και κρατάει ΜΟΝΟ τα One-Off Projects..."):
                     openai_client = OpenAI(api_key=OPENAI_API_KEY)
                     
                     prompt = """
-                    Είσαι ο precise Data Extractor της Does4U. Σου δίνω το Markdown κείμενο μιας σελίδας αγγελιών από το Xing.
+                    Είσαι ο φονικός Data Extractor της Does4U. Σου δίνω το Markdown κείμενο αγγελιών από το Xing.
                     
-                    Αποστολή σου:
-                    1. ΦΙΛΤΡΑΡΙΣΜΑ: Κράτα ΜΟΝΟ τις αγγελίες που ζητάνε Python, Web Scraping, Automations, Bots, AI ή SaaS και είναι πρόσφατες (έως 5-6 ημέρες).
-                    2. ΑΥΣΤΗΡΑ KEYWORDS: Για κάθε match, βρες και εξήγαγε ΜΟΝΟ τα στοιχεία που χρειαζόμαστε για το επόμενο στάδιο (Match):
-                       - Καθαρό Όνομα Εταιρείας ή Όνομα Client (Keyword 1). Αν δεν υπάρχει, γράψε Ν/Α.
-                       - Username ή ID χρήστη (Keyword 2). Αν δεν υπάρχει, γράψε Ν/Α.
-                    3. Μην βάζεις κανέναν κόφτη στον όγκο. Βγάλε ΟΛΑ τα πιθανά leads που υπάρχουν μέσα στο κείμενο.
+                    Η ΑΠΟΣΤΟΛΗ ΣΟΥ ΕΙΝΑΙ ΕΞΑΙΡΕΤΙΚΑ ΚΡΙΣΙΜΗ:
+                    Θέλουμε ΜΟΝΟ projects που είναι "Fixed-Price" ή "Projektbasiert" (One-off / Παράδοση και τέλος). 
+                    Πέταξε στα σκουπίδια θέσεις για μόνιμη απασχόληση (Festanstellung, Full-time, Vollzeit) ή μακροχρόνια συμβόλαια που ζητάνε 'υπάλληλο'.
+                    
+                    Κράτα αγγελίες που:
+                    - Ζητάνε εξωτερικό συνεργάτη (Freelancer / Κατ' αποκοπήν).
+                    - Αφορούν συγκεκριμένο task (π.χ. "Φτιάξε ένα bot", "Κάνε migration μια βάση δεδομένων", "Στήσε ένα automation").
+                    - Είναι Python, Web Scraping, AI, Bots ή SaaS.
+                    
+                    Για κάθε match, εξήγαγε:
+                    - Καθαρό Όνομα Εταιρείας ή Όνομα Client (Keyword 1).
+                    - Username ή ID χρήστη αν υπάρχει, αλλιώς Ν/Α (Keyword 2).
                     
                     Επέστρεψε ΑΥΣΤΗΡΑ ΚΑΙ ΜΟΝΟ ένα JSON αντικείμενο με τη συγκεκριμένη δομή:
                     {
                         "leads": [
                             {
-                                "title_gr": "Ο τίτλος της αγγελίας στα Ελληνικά",
+                                "title_gr": "Ο τίτλος του project στα Ελληνικά",
                                 "client_company_keyword": "Όνομα Εταιρείας ή Client",
                                 "social_username_keyword": "Username ή ID χρήστη",
-                                "project_link": "Το link της αγγελίας στο Xing",
-                                "summary_gr": "Τι ζητάει σύντομα στα Ελληνικά"
+                                "project_link": "Το link του project στο Xing",
+                                "summary_gr": "Τι συγκεκριμένο έργο ζητάνε να παραδοθεί (στα Ελληνικά)"
                             }
                         ]
                     }
@@ -78,23 +81,23 @@ if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.3"):
                         model="gpt-4o-mini",
                         response_format={"type": "json_object"},
                         messages=[
-                            {"role": "system", "content": "You are a data extraction bot. Return only valid JSON."},
+                            {"role": "system", "content": "You are a data extraction bot filtering strictly for freelance, one-off projects. Return only valid JSON."},
                             {"role": "user", "content": f"{prompt}\n\nΚείμενο Xing:\n{raw_markdown}"}
                         ],
-                        temperature=0.2
+                        temperature=0.1 # Χαμηλό temperature για μέγιστη ακρίβεια στα φίλτρα
                     )
                     
                     ai_data = json.loads(ai_response.choices[0].message.content)
                     leads_list = ai_data.get("leads", [])
                     
                     if len(leads_list) == 0:
-                        st.warning("⚠️ Το AI διάβασε το Markdown αλλά δεν εντόπισε πρόσφατες αγγελίες Python.")
+                        st.warning("⚠️ Το AI δεν βρήκε καθαρά 'one-off' projects σε αυτή τη σελίδα. Όλες οι αγγελίες αφορούσαν μόνιμη απασχόληση.")
                     else:
                         df = pd.DataFrame(leads_list)
-                        st.success(f"🔥 Επιτυχία! Εντοπίστηκαν {len(df)} leads από το Xing!")
+                        st.success(f"🔥 Επιτυχία! Εντοπίστηκαν {len(df)} One-Off Projects (Μια φορά και τέλος)!")
                         
-                        df.columns = ["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Link", "Σύνοψη"]
-                        st.dataframe(df[["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Σύνοψη", "Link"]], use_container_width=True)
+                        df.columns = ["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Link", "Τι πρέπει να παραδώσεις"]
+                        st.dataframe(df[["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Τι πρέπει να παραδώσεις", "Link"]], use_container_width=True)
                         
     except Exception as main_e:
         st.error(f"🚨 Σφάλμα κατά την εκτέλεση: {main_e}")
