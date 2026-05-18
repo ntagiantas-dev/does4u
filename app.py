@@ -6,8 +6,8 @@ import sqlite3
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Lead Sniper DB v0.0.7", page_icon="🗄️", layout="wide")
-st.title("🗄️ Does4U Lead Sniper με Μόνιμη Βάση Δεδομένων v0.0.7")
+st.set_page_config(page_title="Does4U - Lead Sniper DB v0.0.8", page_icon="🗄️", layout="wide")
+st.title("🗄️ Does4U Lead Sniper με Μόνιμη Βάση Δεδομένων v0.0.8")
 
 # --- ΣΥΝΔΕΣΗ ΚΑΙ ΔΗΜΙΟΥΡΓΙΑ ΒΑΣΗΣ ΔΕΔΟΜΕΝΩΝ (SQLite) ---
 def init_db():
@@ -30,7 +30,6 @@ def init_db():
 def save_lead(company, title, summary, link, email_content):
     conn = sqlite3.connect("does4u_leads.db")
     cursor = conn.cursor()
-    # Έλεγχος για να μην βάζουμε τα ίδια διπλά (duplicity check βάσει link)
     cursor.execute("SELECT id FROM leads WHERE link = ?", (link,))
     exists = cursor.fetchone()
     if not exists:
@@ -47,16 +46,8 @@ def get_last_50_leads():
     conn.close()
     return df
 
-# Αρχικοποίηση της DB
+# Αρχικοποίηση της DB πάντα στην αρχή
 init_db()
-
-# --- ΚΥΡΙΩΣ ΕΦΑΡΜΟΓΗ ---
-try:
-    JINA_API_KEY = st.secrets["JINA_API_KEY"]
-    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-except KeyError:
-    st.error("🚨 Σφάλμα: Λείπει το JINA_API_KEY ή το OPENAI_API_KEY στα Secrets!")
-    st.stop()
 
 XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20freelance"
 
@@ -64,9 +55,14 @@ col_actions, col_history = st.columns([1, 1])
 
 with col_actions:
     st.subheader("🎯 Νέο Σκανάρισμα")
+    
     if st.button("🚀 ΕΝΑΡΞΗ & ΑΠΟΘΗΚΕΥΣΗ ΣΤΗ ΒΑΣΗ"):
-        st.write("📡 Η Jina AI σκανάρει το Xing...")
+        # ΔΙΟΡΘΩΣΗ: Ο έλεγχος μεταφέρθηκε ΕΔΩ, αφού πατηθεί το κουμπί!
         try:
+            JINA_API_KEY = st.secrets["JINA_API_KEY"]
+            OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+            
+            st.write("📡 Η Jina AI σκανάρει το Xing...")
             jina_endpoint = f"https://r.jina.ai/{XING_TARGET_URL}"
             headers = {"Authorization": f"Bearer {JINA_API_KEY}", "X-Return-Format": "markdown"}
             response = requests.get(jina_endpoint, headers=headers)
@@ -104,10 +100,14 @@ with col_actions:
                                 lead['ready_email_en']
                             )
                         st.success(f"🔥 Βρέθηκαν και αποθηκεύτηκαν {len(leads_list)} νέα leads στη βάση!")
+                        st.rerun() # Κάνει αυτόματη ανανέωση για να εμφανιστούν αμέσως δεξιά στο ιστορικό!
                     else:
                         st.warning("⚠️ Δεν βρέθηκαν νέα one-off projects.")
-        except Exception as e:
-            st.error(f"🚨 Σφάλμα: {e}")
+            else:
+                st.error(f"❌ Σφάλμα Jina API (Status Code: {response.status_code})")
+                
+        except KeyError:
+            st.error("🚨 Σφάλμα: Λείπει το JINA_API_KEY ή το OPENAI_API_KEY από τα Secrets του Streamlit Cloud!")
 
 # --- ΕΜΦΑΝΙΣΗ ΙΣΤΟΡΙΚΟΥ (ΔΕΞΙΑ ΣΤΗΝ ΟΘΟΝΗ) ---
 with col_history:
@@ -117,7 +117,6 @@ with col_history:
     if history_df.empty:
         st.info("Η βάση δεδομένων είναι άδεια. Κάνε το πρώτο σκανάρισμα για να μαζέψεις δεδομένα!")
     else:
-        # Κουμπί για κατέβασμα σε Excel/CSV
         csv = history_df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📥 Κατέβασε όλη τη Βάση σε CSV (Excel)",
@@ -127,7 +126,6 @@ with col_history:
         )
         st.markdown("---")
         
-        # Εμφάνιση των αποθηκευμένων leads με Expanders
         for idx, row in history_df.iterrows():
             with st.expander(f"🏢 {row['company']} - {row['title']}"):
                 st.write(f"**Ημερομηνία Καταγραφής:** {row['timestamp']}")
