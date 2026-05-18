@@ -5,8 +5,8 @@ import json
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Jina Xing Sniper v0.0.2", page_icon="🦊", layout="wide")
-st.title("🦊 Does4U Jina AI Xing Sniper v0.0.2")
+st.set_page_config(page_title="Does4U - Jina Xing Sniper v0.0.3", page_icon="🦊", layout="wide")
+st.title("🦊 Does4U Jina AI Xing Sniper v0.0.3")
 st.subheader("Στάδιο 1: Απομονωμένη Συλλογή Keywords από το Xing")
 
 # Έλεγχος και Διάβασμα των κλειδιών από τα Secrets
@@ -22,8 +22,8 @@ XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20remote"
 
 st.info(f"🎯 **Στόχος:** Σκανάρισμα της σελίδας: `{XING_TARGET_URL}`")
 
-if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.2"):
-    st.write("📡 Η Jina AI χτυπάει το Xing και μετατρέπει τη σελίδα σε Markdown...")
+if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.3"):
+    st.write("📡 Η Jina AI χτυπάει το Xing... (Αναμονή για Markdown)")
     
     try:
         # Κλήση στο Jina Reader API
@@ -38,12 +38,12 @@ if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.2"):
         if response.status_code != 200:
             st.error(f"❌ Η Jina AI επέστρεψε σφάλμα συστήματος (Status Code: {response.status_code}). Μήνυμα: {response.text}")
         else:
-            # Μετατρέπουμε ρητά την απάντηση σε string για να αποφύγουμε το σφάλμα 'int'
-            raw_markdown = str(response.text)
+            raw_markdown = response.text
             
-            if not raw_markdown or len(raw_markdown).strip() < 200:
+            # ΔΙΟΡΘΩΘΗΚΕ: Το .strip() μπήκε σωστά μέσα στο len()
+            if not raw_markdown or len(raw_markdown.strip()) < 200:
                 st.error("⚠️ Το κείμενο που επέστρεψε η Jina είναι πολύ μικρό ή άδειο. Πιθανό block ασφαλείας από το Xing.")
-                st.code(raw_markdown[:500], language="markdown") # Μας δείχνει τι ακριβώς πήραμε
+                st.code(raw_markdown[:500], language="markdown")
             else:
                 st.success(f"✅ Η Jina AI διάβασε τη σελίδα επιτυχώς ({len(raw_markdown)} χαρακτήρες)!")
                 
