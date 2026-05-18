@@ -33,15 +33,71 @@ with admin_tab1:
     st.write("Δημιουργήστε και εγκρίνετε στρατηγικά άρθρα για το Tech & Growth Blog σας.")
 
     # 1. Μηχανή Παραγωγής Άρθρων
+    # 1. Μηχανή Παραγωγής Άρθρων (Αναβαθμισμένη με Advanced Domain Filtering)
     def generate_strategic_article(category, target):
         if category == "💻 Python & AI Updates":
             logic = "Elite SaaS Engineer & Python Developer. Focus: Clean code, web scraping, automation frameworks, APIs, technical accuracy."
-            query = f"Python {target} web scraping automation updates 2026"
+            query = f"{target} release updates documentation 2026"
             img_path = "blog_images/tech_default.jpg"
+            # 🎯 ΟΡΙΖΟΥΜΕ ΕΙΔΙΚΑ DOMAINS ΓΙΑ TECH & AI
+            domains_to_search = ["python.org", "anthropic.com", "googleblog.com", "openai.com", "github.com", "stackoverflow.com"]
         else:  # 📈 Growth Hacking
             logic = "Disruptive Growth Hacker & Automation Expert. Focus: High ROI, lead generation, scraping competitors, growth strategies."
-            query = f"Growth hacking automation {target} lead generation tools 2026"
+            query = f"Growth hacking automation {target} tools tactical guide 2026"
             img_path = "blog_images/growth_default.jpg"
+            # 🎯 ΟΡΙΖΟΥΜΕ ΕΙΔΙΚΑ DOMAINS ΓΙΑ MARKETING & GROWTH
+            domains_to_search = ["techcrunch.com", "indiehackers.com", "producthunt.com", "medium.com"]
+
+        with st.spinner("🕵️ Η Does4U σκανάρει στοχευμένα τα επίσημα Tech Domains..."):
+            try:
+                # Ζωντανή αναζήτηση ΜΟΝΟ στα επιλεγμένα domains
+                search = tavily.search(
+                    query=query, 
+                    search_depth="advanced", 
+                    max_results=3,
+                    include_domains=domains_to_search # 👈 ΕΔΩ ΓΙΝΕΤΑΙ ΤΟ ΜΑΓΙΚΟ!
+                )
+                
+                # Σύνταξη από GPT-4o
+                prompt = f"""
+                Role: {logic}
+                ΘΕΜΑ: {target}
+                ΠΡΩΤΟΓΕΝΗ ΔΕΔΟΜΕΝΑ ΑΠΟ ΕΠΙΣΗΜΕΣ ΠΗΓΕΣ: {str(search)}
+                
+                ΟΔΗΓΙΕΣ:
+                1. Γράψε ένα κορυφαίο άρθρο, τουλάχιστον 500 λέξεων, στα ΕΛΛΗΝΙΚΑ.
+                2. Βασίσου ΑΥΣΤΗΡΑ στις τεχνικές λεπτομέρειες των δεδομένων. Μίλα για συγκεκριμένα libraries, APIs ή εκδόσεις του 2026.
+                3. Μην χρησιμοποιείς AI κλισέ. Μπες κατευθείαν στο ψητό με Markdown (H2, H3, Bullets).
+                4. Στο ΤΕΛΟΣ του κειμένου, γράψε ΑΚΡΙΒΩΣ τη λέξη: SPLIT_HERE
+                5. Μετά τη λέξη SPLIT_HERE, γράψε ένα social media post (LinkedIn/Reddit) με δυνατά hooks και hashtags.
+                """
+                
+                res = client.chat.completions.create(
+                    model="gpt-4o", 
+                    messages=[{"role": "system", "content": prompt}]
+                )
+                full_response = res.choices[0].message.content
+
+                if "SPLIT_HERE" in full_response:
+                    parts = full_response.split("SPLIT_HERE")
+                    article_body = parts[0].strip()
+                    teaser_final = parts[1].strip()
+                else:
+                    article_body = full_response
+                    teaser_final = "🚀 New Tech Deep-Dive Alert on Does4U!"
+
+                return {
+                    "title": target,
+                    "content": article_body,
+                    "teaser": teaser_final,
+                    "category": category,
+                    "target": target,
+                    "date": datetime.now().strftime("%d/%m/%Y"),
+                    "image": img_path
+                }
+            except Exception as e:
+                st.error(f"❌ Σφάλμα κατά την παραγωγή: {e}")
+                return None
 
         with st.spinner("🕵️ Η Does4U αναλύει τις παγκόσμιες πηγές..."):
             try:
