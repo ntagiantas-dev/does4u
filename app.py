@@ -5,8 +5,8 @@ import json
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Jina Xing Sniper v0.0.1", page_icon="🦊", layout="wide")
-st.title("🦊 Does4U Jina AI Xing Sniper v0.0.1")
+st.set_page_config(page_title="Does4U - Jina Xing Sniper v0.0.2", page_icon="🦊", layout="wide")
+st.title("🦊 Does4U Jina AI Xing Sniper v0.0.2")
 st.subheader("Στάδιο 1: Απομονωμένη Συλλογή Keywords από το Xing")
 
 # Έλεγχος και Διάβασμα των κλειδιών από τα Secrets
@@ -22,7 +22,7 @@ XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20remote"
 
 st.info(f"🎯 **Στόχος:** Σκανάρισμα της σελίδας: `{XING_TARGET_URL}`")
 
-if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.1"):
+if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.2"):
     st.write("📡 Η Jina AI χτυπάει το Xing και μετατρέπει τη σελίδα σε Markdown...")
     
     try:
@@ -36,12 +36,14 @@ if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.1"):
         response = requests.get(jina_endpoint, headers=headers)
         
         if response.status_code != 200:
-            st.error(f"❌ Η Jina AI επέστρεψε σφάλμα συστήματος (Status Code: {response.status_code}).")
+            st.error(f"❌ Η Jina AI επέστρεψε σφάλμα συστήματος (Status Code: {response.status_code}). Μήνυμα: {response.text}")
         else:
-            raw_markdown = response.text
+            # Μετατρέπουμε ρητά την απάντηση σε string για να αποφύγουμε το σφάλμα 'int'
+            raw_markdown = str(response.text)
             
-            if len(raw_markdown).strip() < 200:
-                st.error("⚠️ Το κείμενο που επέστρεψε η Jina είναι πολύ μικρό. Πιθανό block ασφαλείας από το Xing.")
+            if not raw_markdown or len(raw_markdown).strip() < 200:
+                st.error("⚠️ Το κείμενο που επέστρεψε η Jina είναι πολύ μικρό ή άδειο. Πιθανό block ασφαλείας από το Xing.")
+                st.code(raw_markdown[:500], language="markdown") # Μας δείχνει τι ακριβώς πήραμε
             else:
                 st.success(f"✅ Η Jina AI διάβασε τη σελίδα επιτυχώς ({len(raw_markdown)} χαρακτήρες)!")
                 
@@ -91,7 +93,6 @@ if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.1"):
                         df = pd.DataFrame(leads_list)
                         st.success(f"🔥 Επιτυχία! Εντοπίστηκαν {len(df)} leads από το Xing!")
                         
-                        # Μορφοποίηση στηλών για την οθόνη σου
                         df.columns = ["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Link", "Σύνοψη"]
                         st.dataframe(df[["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Σύνοψη", "Link"]], use_container_width=True)
                         
