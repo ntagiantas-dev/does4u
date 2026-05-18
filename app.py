@@ -1,113 +1,99 @@
 import streamlit as st
-from firecrawl import Firecrawl
+import requests
 from openai import OpenAI
 import json
 import pandas as pd
 
 # Ρύθμιση Σελίδας
-st.set_page_config(page_title="Does4U - Lead Volume Engine", page_icon="📈", layout="wide")
-st.title("📈 Does4U Lead Volume Engine v22.0")
-st.subheader("Στάδιο 1: Μαζικό Scraping από 5 Πηγές για Εξαγωγή Συγκεκριμένων Keywords")
+st.set_page_config(page_title="Does4U - Jina Xing Sniper v0.0.1", page_icon="🦊", layout="wide")
+st.title("🦊 Does4U Jina AI Xing Sniper v0.0.1")
+st.subheader("Στάδιο 1: Απομονωμένη Συλλογή Keywords από το Xing")
 
-# Διάβασμα των κλειδιών από τα Secrets του Streamlit Cloud
+# Έλεγχος και Διάβασμα των κλειδιών από τα Secrets
 try:
-    FIRECRAWL_API_KEY = st.secrets["FIRECRAWL_API_KEY"]
+    JINA_API_KEY = st.secrets["JINA_API_KEY"]
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 except KeyError:
-    st.error("🚨 Σφάλμα: Δεν βρέθηκαν τα κλειδιά στα Secrets του Streamlit Cloud!")
+    st.error("🚨 Σφάλμα: Λείπει το JINA_API_KEY ή το OPENAI_API_KEY από τα Secrets του Streamlit!")
     st.stop()
 
-if st.button("🔥 ΕΝΑΡΞΗ ΜΑΖΙΚΗΣ ΣΥΛΛΟΓΗΣ ΑΠΟ 5 ΠΛΑΤΦΟΡΜΕΣ"):
-    with st.spinner("Το Firecrawl σκανάρει και τις 5 πλατφόρμες για να πιάσουμε τον στόχο..."):
-        
-        try:
-            firecrawl_app = Firecrawl(api_key=FIRECRAWL_API_KEY)
-            openai_client = OpenAI(api_key=OPENAI_API_KEY)
-            
-            # 🌐 ΟΙ 5 ΕΣΤΙΑΣΜΕΝΕΣ ΠΗΓΕΣ ΓΙΑ ΜΕΓΙΣΤΟ ΟΓΚΟ
-            targets = [
-                {"platform": "Upwork", "url": "https://www.upwork.com/nx/search/jobs/?q=python%20scraping"},
-                {"platform": "Freelancer", "url": "https://www.freelancer.com/jobs/python"},
-                {"platform": "Fiverr", "url": "https://www.fiverr.com/search/gigs?query=python%20automation"},
-                {"platform": "WeWorkRemotely", "url": "https://weworkremotely.com/categories/remote-programming-jobs"},
-                {"platform": "RemoteOK", "url": "https://remoteok.com/remote-python-jobs"}
-            ]
-            
-            all_raw_content = ""
-            
-            # Σαρώνομαι όλες τις πηγές
-            for target in targets:
-                try:
-                    st.write(f"📡 Σύνδεση με: **{target['platform']}**...")
-                    scrape_result = firecrawl_app.scrape(target['url'], formats=['markdown'])
-                    
-                    if isinstance(scrape_result, dict):
-                        page_text = scrape_result.get("markdown", "")
-                    else:
-                        page_text = getattr(scrape_result, 'markdown', '')
-                    
-                    if page_text and len(page_text).strip() > 200:
-                        all_raw_content += f"\n\n--- DATA FROM {target['platform']} ---\n\n" + page_text
-                        st.write(f"✅ Λήφθηκαν δεδομένα από {target['platform']}.")
-                    else:
-                        st.write(f"⚠️ Το {target['platform']} δεν επέστρεψε επαρκές κείμενο (πιθανό block).")
-                except Exception as e:
-                    st.write(f"❌ Αποτυχία στο {target['platform']}: {e}")
+# Το στοχευμένο URL στο Xing για Python Remote εργασίες
+XING_TARGET_URL = "https://www.xing.com/jobs/search?keywords=python%20remote"
 
-            if not all_raw_content.strip():
-                st.error("🚨 Δεν μαζεύτηκαν δεδομένα από καμία πλατφόρμα. Όλες οι πηγές μπλόκαραν το scraping.")
+st.info(f"🎯 **Στόχος:** Σκανάρισμα της σελίδας: `{XING_TARGET_URL}`")
+
+if st.button("🔥 ΕΝΑΡΞΗ ΞΕΣΚΟΝΙΣΜΑΤΟΣ JINA v0.0.1"):
+    st.write("📡 Η Jina AI χτυπάει το Xing και μετατρέπει τη σελίδα σε Markdown...")
+    
+    try:
+        # Κλήση στο Jina Reader API
+        jina_endpoint = f"https://r.jina.ai/{XING_TARGET_URL}"
+        headers = {
+            "Authorization": f"Bearer {JINA_API_KEY}",
+            "X-Return-Format": "markdown"
+        }
+        
+        response = requests.get(jina_endpoint, headers=headers)
+        
+        if response.status_code != 200:
+            st.error(f"❌ Η Jina AI επέστρεψε σφάλμα συστήματος (Status Code: {response.status_code}).")
+        else:
+            raw_markdown = response.text
+            
+            if len(raw_markdown).strip() < 200:
+                st.error("⚠️ Το κείμενο που επέστρεψε η Jina είναι πολύ μικρό. Πιθανό block ασφαλείας από το Xing.")
             else:
-                with st.spinner("Το GPT-4o-mini εξάγει τα αυστηρά Keywords για τα 2 επόμενα εργαλεία..."):
+                st.success(f"✅ Η Jina AI διάβασε τη σελίδα επιτυχώς ({len(raw_markdown)} χαρακτήρες)!")
+                
+                with st.spinner("Το GPT-4o-mini αναλύει το κείμενο για να απομονώσει τα Keywords..."):
+                    openai_client = OpenAI(api_key=OPENAI_API_KEY)
                     
-                    prompt = f"""
-                    Είσαι ο Data Extractor της Does4U. Σου δίνω το markdown κείμενο από 5 μεγάλες πλατφόρμες εύρεσης εργασίας.
+                    prompt = """
+                    Είσαι ο precise Data Extractor της Does4U. Σου δίνω το Markdown κείμενο μιας σελίδας αγγελιών από το Xing.
                     
                     Αποστολή σου:
-                    1. ΦΙΛΤΡΑΡΙΣΜΑ: Κράτα ΜΟΝΟ αγγελίες ή posts που ζητάνε Python, Web Scraping, Automations, Bots, AI ή SaaS και έχουν ηλικία έως 5 ημέρες.
-                    2. ΑΥΣΤΗΡΑ KEYWORDS: Για κάθε match, βρες και απομόνωσε ΜΟΝΟ τα στοιχεία που χρειάζονται για τα 2 εργαλεία ταυτοποίησης:
-                       - Αν πρόκειται για εταιρεία/job board: Βρες το καθαρό Όνομα Εταιρείας ή Όνομα Client (για το εργαλείο εταιρειών).
-                       - Αν πρόκειται για profile/user: Βρες το συγκεκριμένο Username ή ID του χρήστη (για το εργαλείο social).
-                    3. Μην βάζεις όριο στο πόσα αποτελέσματα θα φέρεις. Φέρε ΟΣΑ περισσότερα βρεις μέσα στο κείμενο για να πιάσουμε τον στόχο των 10+.
+                    1. ΦΙΛΤΡΑΡΙΣΜΑ: Κράτα ΜΟΝΟ τις αγγελίες που ζητάνε Python, Web Scraping, Automations, Bots, AI ή SaaS και είναι πρόσφατες (έως 5-6 ημέρες).
+                    2. ΑΥΣΤΗΡΑ KEYWORDS: Για κάθε match, βρες και εξήγαγε ΜΟΝΟ τα στοιχεία που χρειαζόμαστε για το επόμενο στάδιο (Match):
+                       - Καθαρό Όνομα Εταιρείας ή Όνομα Client (Keyword 1). Αν δεν υπάρχει, γράψε Ν/Α.
+                       - Username ή ID χρήστη (Keyword 2). Αν δεν υπάρχει, γράψε Ν/Α.
+                    3. Μην βάζεις κανέναν κόφτη στον όγκο. Βγάλε ΟΛΑ τα πιθανά leads που υπάρχουν μέσα στο κείμενο.
                     
-                    Επέστρεψε ΑΥΣΤΗΡΑ ΚΑΙ ΜΟΝΟ ένα JSON αντικείμενο:
-                    {{
+                    Επέστρεψε ΑΥΣΤΗΡΑ ΚΑΙ ΜΟΝΟ ένα JSON αντικείμενο με τη συγκεκριμένη δομή:
+                    {
                         "leads": [
-                            {{
+                            {
                                 "title_gr": "Ο τίτλος της αγγελίας στα Ελληνικά",
-                                "client_company_keyword": "Όνομα Εταιρείας ή Client (Αν δεν υπάρχει, γράψε Ν/Α)",
-                                "social_username_keyword": "Username ή ID χρήστη (Αν δεν υπάρχει, γράψε Ν/Α)",
-                                "source_platform": "Η πλατφόρμα προέλευσης (π.χ. Upwork, WeWorkRemotely κλπ)",
-                                "project_link": "Το link της αγγελίας",
+                                "client_company_keyword": "Όνομα Εταιρείας ή Client",
+                                "social_username_keyword": "Username ή ID χρήστη",
+                                "project_link": "Το link της αγγελίας στο Xing",
                                 "summary_gr": "Τι ζητάει σύντομα στα Ελληνικά"
-                            }}
+                            }
                         ]
-                    }}
+                    }
                     """
                     
-                    response = openai_client.chat.completions.create(
+                    ai_response = openai_client.chat.completions.create(
                         model="gpt-4o-mini",
                         response_format={"type": "json_object"},
                         messages=[
-                            {"role": "system", "content": "You are a precise data extractor. Return only valid JSON."},
-                            {"role": "user", "content": f"{prompt}\n\nΚείμενο:\n{all_raw_content}"}
+                            {"role": "system", "content": "You are a data extraction bot. Return only valid JSON."},
+                            {"role": "user", "content": f"{prompt}\n\nΚείμενο Xing:\n{raw_markdown}"}
                         ],
-                        temperature=0.1
+                        temperature=0.2
                     )
                     
-                    ai_data = json.loads(response.choices[0].message.content)
+                    ai_data = json.loads(ai_response.choices[0].message.content)
                     leads_list = ai_data.get("leads", [])
                     
                     if len(leads_list) == 0:
-                        st.warning("⚠️ Το AI δεν εντόπισε κατάλληλα projects < 5 ημερών στο κείμενο αυτή τη στιγμή.")
+                        st.warning("⚠️ Το AI διάβασε το Markdown αλλά δεν εντόπισε πρόσφατες αγγελίες Python.")
                     else:
                         df = pd.DataFrame(leads_list)
-                        st.success(f"🎯 Επιτυχία! Εντοπίστηκαν {len(df)} leads από τις 5 πηγές!")
+                        st.success(f"🔥 Επιτυχία! Εντοπίστηκαν {len(df)} leads από το Xing!")
                         
-                        # Οργάνωση στηλών για τον πίνακα
-                        df.columns = ["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Πηγή", "Link", "Σύνοψη"]
+                        # Μορφοποίηση στηλών για την οθόνη σου
+                        df.columns = ["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Link", "Σύνοψη"]
+                        st.dataframe(df[["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Σύνοψη", "Link"]], use_container_width=True)
                         
-                        # Εμφάνιση του τελικού πίνακα
-                        st.dataframe(df[["Project (Ελληνικά)", "Εταιρεία (Keyword 1)", "Social Username (Keyword 2)", "Πηγή", "Σύνοψη", "Link"]], use_container_width=True)
-                        
-        except Exception as main_e:
-            st.error(f"🚨 Σφάλμα συστήματος: {main_e}")
+    except Exception as main_e:
+        st.error(f"🚨 Σφάλμα κατά την εκτέλεση: {main_e}")
