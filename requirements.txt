@@ -6,3 +6,4 @@ tavily-python
 python-docx
 reportlab
 pillow
+praw
