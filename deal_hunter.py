@@ -2,106 +2,84 @@ import os
 import requests
 import json
 import time
+import smtplib
+from email.message import EmailMessage
 import streamlit as st
 from openai import OpenAI
 
-# ΑΠΟΛΥΤΑ ΑΣΦΑΛΗΣ ΜΕΘΟΔΟΣ
+# 1. Ασφαλής ανάκτηση όλων των κλειδιών
 def get_config(key):
-    # 1. Πρώτα Streamlit Secrets (αν υπάρχουν)
     if hasattr(st, "secrets") and key in st.secrets:
         return st.secrets[key]
-    # 2. Μετά Environment Variables
     return os.getenv(key)
 
+# Φόρτωση όλων των απαραίτητων κλειδιών
 OPENAI_API_KEY = get_config("OPENAI_API_KEY")
 DROPCONTACT_API_KEY = get_config("DROPCONTACT_API_KEY")
-
-# Αν φτάσουμε εδώ και δεν έχουμε κλειδιά, βγάζουμε ένα φιλικό μήνυμα αντί για crash
-if not OPENAI_API_KEY or not DROPCONTACT_API_KEY:
-    st.error("Δεν βρέθηκαν τα API Keys. Παρακαλώ έλεγξε τα Secrets στο Streamlit Cloud.")
-    st.stop() # Σταματάει την εκτέλεση χωρίς error tracebacks
+JINA_API_KEY = get_config("JINA_API_KEY")
+EMAIL_USER = get_config("EMAIL_USER")
+EMAIL_PASSWORD = get_config("EMAIL_PASSWORD")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+# 2. Scraper (Jina)
 def scrape_with_jina(url):
-    """Μετατρέπει οποιοδήποτε URL σε καθαρό κείμενο για το LLM."""
+    headers = {"Authorization": f"Bearer {JINA_API_KEY}"} if JINA_API_KEY else {}
     jina_url = f"https://r.jina.ai/{url}"
     try:
-        response = requests.get(jina_url, timeout=30)
+        response = requests.get(jina_url, headers=headers, timeout=30)
         return response.text
     except Exception as e:
-        print(f"Scrape error: {e}")
         return ""
 
+# 3. GPT Brain (Analysis)
 def filter_and_extract_gpt(raw_text):
-    """Το 'μυαλό' που κρίνει και εξάγει δεδομένα."""
-    prompt = f"""
-    Analyze this Upwork job text and client reviews. 
-    1. Check if it's about: Web Scraping, AI Automation, Python Scripts, or Growth Hacking.
-    2. If NOT relevant, return {{ "status": "ignored" }}.
-    3. If relevant, extract:
-       - company: Name of company if found.
-       - website: Website domain if found.
-       - first_name: Client's first name found in reviews (e.g. 'Thanks David!').
-       - last_name: Last name if available.
+    prompt = f"""Analyze the Upwork job text. 
+    1. Check for: Web Scraping, AI Automation, Python, Growth Hacking.
+    2. If not relevant, return {{"status": "ignored"}}.
+    3. If relevant, extract: company, website, first_name.
+    Return ONLY JSON. Text: {raw_text}"""
     
-    Return ONLY valid JSON (no markdown). 
-    Text: {raw_text}
-    """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}]
     )
-    
     content = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(content)
 
+# 4. Enrichment (Dropcontact)
 def match_with_dropcontact(data):
-    """Αποστολή στους Γάλλους για το email."""
     url = "https://api.dropcontact.io/v1/enrich"
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-Key": DROPCONTACT_API_KEY
-    }
-    payload = {
-        "firstName": data.get("first_name"),
-        "company": data.get("company"),
-        "website": data.get("website")
-    }
-    response = requests.post(url, headers=headers, json=payload)
-    return response.json()
+    headers = {"Content-Type": "application/json", "X-API-Key": DROPCONTACT_API_KEY}
+    payload = {"firstName": data.get("first_name"), "company": data.get("company"), "website": data.get("website")}
+    return requests.post(url, headers=headers, json=json.dumps(payload)).json()
 
-def run_deal_hunter(job_links):
-    """Η λούπα που ξεσκονίζει τα πάντα."""
-    print(f"🚀 Ξεκίνησε το ξεσκόνισμα για {len(job_links)} αγγελίες...")
+# 5. SMTP Outreach
+def send_email(to_email, name):
+    msg = EmailMessage()
+    msg.set_content(f"Hi {name}, saw your job post and I can help with automation!")
+    msg["Subject"] = "Quick question about your Upwork post"
+    msg["From"] = EMAIL_USER
+    msg["To"] = to_email
     
-    for link in job_links:
-        print(f"\n🔍 Ελέγχω: {link}")
-        
-        # 1. Scraping
-        text = scrape_with_jina(link)
-        
-        # 2. Decision & Extraction
-        try:
-            decision = filter_and_extract_gpt(text)
-            
-            if decision.get("status") != "ignored":
-                print(f"🎯 Match! Εταιρεία: {decision.get('company')}. Στέλνω στο Dropcontact...")
-                
-                # 3. Enrichment
-                result = match_with_dropcontact(decision)
-                print(f"📧 ΑΠΟΤΕΛΕΣΜΑ: {result}")
-            else:
-                print("⏭️ Αδιάφορη αγγελία.")
-        except Exception as e:
-            print(f"⚠️ Σφάλμα στην ανάλυση: {e}")
-            
-        time.sleep(3) 
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(EMAIL_USER, EMAIL_PASSWORD)
+        smtp.send_message(msg)
 
-# MAIN EXECUTION
+# 6. Κεντρική Ροή (The Hunter)
+def run_deal_hunter(job_links):
+    for link in job_links:
+        text = scrape_with_jina(link)
+        decision = filter_and_extract_gpt(text)
+        
+        if decision.get("status") != "ignored":
+            enrichment = match_with_dropcontact(decision)
+            email = enrichment.get("email")
+            if email:
+                send_email(email, decision.get("first_name"))
+        time.sleep(3)
+
 if __name__ == "__main__":
-    # Εδώ θα βάζεις τα links που θα σκουπίζεις
-    urls_to_scan = [
-        "https://www.upwork.com/jobs/Example-Job-Link-1"
-    ]
-    run_deal_hunter(urls_to_scan)
+    # Εδώ θα μπαίνουν τα links
+    urls = ["URL1", "URL2"] 
+    run_deal_hunter(urls)
