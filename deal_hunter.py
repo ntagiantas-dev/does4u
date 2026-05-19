@@ -18,9 +18,13 @@ def scrape_target(url):
         return f"Error: {str(e)}"
 
 def analyze_relevance(text_data):
-    prompt = f"Analyze this job: {text_data}. Is it a one-time project? Return JSON: {{\"relevant\": true/false, \"reason\": \"string\", \"keywords\": [], \"client_entity\": \"string\"}}"
+    # Κόβουμε το κείμενο στους πρώτους 15.000 χαρακτήρες (αρκούν για να βρει το project)
+    trimmed_text = text_data[:15000] 
+    
+    prompt = f"Analyze this job: {trimmed_text}. Return JSON: {{\"relevant\": true/false, \"reason\": \"string\", \"keywords\": [], \"client_entity\": \"string\"}}"
+    
     resp = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini", # Χρησιμοποίησε το mini για να γλιτώσεις credits και errors
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"}
     )
