@@ -2,11 +2,24 @@ import os
 import requests
 import json
 import time
+import streamlit as st
 from openai import OpenAI
 
-# 1. Configuration - Βεβαιώσου ότι αυτά είναι στο .env
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-DROPCONTACT_API_KEY = os.getenv("DROPCONTACT_API_KEY")
+# 1. Πλήρως συμβατό setup για Streamlit Secrets και Environment Variables
+def get_secret(key):
+    # Προτεραιότητα στο Streamlit Secrets, μετά στο περιβάλλον (OS)
+    if key in st.secrets:
+        return st.secrets[key]
+    return os.getenv(key)
+
+# Mapping για να δουλεύει το os.getenv() αν το χρειάζεται κάποιο άλλο library
+for key, value in st.secrets.items():
+    os.environ[key] = str(value)
+
+OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
+DROPCONTACT_API_KEY = get_secret("DROPCONTACT_API_KEY")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def scrape_with_jina(url):
     """Μετατρέπει οποιοδήποτε URL σε καθαρό κείμενο για το LLM."""
@@ -38,7 +51,6 @@ def filter_and_extract_gpt(raw_text):
         messages=[{"role": "user", "content": prompt}]
     )
     
-    # Καθαρισμός από πιθανά markdown artifacts
     content = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
     return json.loads(content)
 
@@ -82,13 +94,12 @@ def run_deal_hunter(job_links):
         except Exception as e:
             print(f"⚠️ Σφάλμα στην ανάλυση: {e}")
             
-        time.sleep(3) # Anti-ban rate limiting
+        time.sleep(3) 
 
-# Παράδειγμα λίστας για να ξεκινήσει η σκούπα
-urls_to_scan = [
-    "https://www.upwork.com/jobs/Example-Job-Link-1",
-    "https://www.upwork.com/jobs/Example-Job-Link-2"
-]
-
+# MAIN EXECUTION
 if __name__ == "__main__":
+    # Εδώ θα βάζεις τα links που θα σκουπίζεις
+    urls_to_scan = [
+        "https://www.upwork.com/jobs/Example-Job-Link-1"
+    ]
     run_deal_hunter(urls_to_scan)
