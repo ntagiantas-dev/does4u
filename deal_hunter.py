@@ -9,30 +9,17 @@ from openai import OpenAI
 def get_key(k): return st.secrets.get(k) or os.getenv(k)
 client = OpenAI(api_key=get_key("OPENAI_API_KEY"))
 
-# 1. ScrapeGraph: Επιθετική ρύθμιση για το Freelancer
-def scrape_target(url, cookies=None):
-    # Τα headers βοηθούν να μη σε αναγνωρίζει ως bot
-    graph_config = {
-        "llm": {"api_key": get_key("OPENAI_API_KEY"), "model_name": "gpt-4o"},
-        "headless": True,
-        "verbose": True,
-        "browser": "chromium",
-        "cookies": cookies if cookies else None,
-        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
-    prompt = """
-    Analyze the project page. Extract:
-    - job_title: The main project title.
-    - project_description: Detailed requirements.
-    - budget_range: The provided budget.
-    - client_name: If visible in reviews or bio.
-    - company_website: If mentioned in the description.
-    """
+def scrape_target(url):
+    # Το Jina μετατρέπει το URL σε κείμενο χωρίς να ανοίγει browser
+    jina_url = f"https://r.jina.ai/{url}"
+    headers = {"Authorization": f"Bearer {get_key('JINA_API_KEY')}"} # Αν έχεις κλειδί
     
     try:
-        scraper = SmartScraperGraph(prompt=prompt, source=url, config=graph_config)
-        return scraper.run()
+        response = requests.get(jina_url, headers=headers)
+        if response.status_code == 200:
+            return response.text # Επιστρέφει καθαρό κείμενο για το GPT
+        else:
+            return {"error": f"Failed with status {response.status_code}"}
     except Exception as e:
         return {"error": str(e)}
 
