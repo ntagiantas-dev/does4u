@@ -13,3 +13,4 @@ firecrawl-py
 pandas
 scrapegraphai
 playwright
+feedparser
