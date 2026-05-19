@@ -45,7 +45,31 @@ def init_db():
 
 init_db()
 
-# 📞 Apollo API Lookup Function (Mixed People Search για Cold Leads)
+# 1️⃣ Apollo API: Εύρεση Επίσημου Domain βάσει Ονόματος Εταιρείας (Όχι μαντεψιές)
+def get_apollo_company_domain(company_name):
+    url = "https://api.apollo.io/v1/accounts/search"
+    headers = {
+        "Cache-Control": "no-cache",
+        "Content-Type": "application/json",
+        "X-Api-Key": APOLLO_KEY
+    }
+    payload = {
+        "q_organization_name": company_name,
+        "page": 1,
+        "per_page": 1
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            accounts = data.get("accounts", [])
+            if accounts:
+                return accounts[0].get("domain")
+        return None
+    except:
+        return None
+
+# 2️⃣ Apollo API: Αναζήτηση Στελεχών βάσει του Έγκυρου Domain
 def search_apollo_contacts(company_domain):
     url = "https://api.apollo.io/v1/mixed_people/search"
     headers = {
@@ -75,7 +99,6 @@ def search_apollo_contacts(company_domain):
 if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσματος Xing"):
     with st.spinner("🕷️ Η Jina AI ξεσκονίζει το Xing για αγγελίες..."):
         
-        # Σταθερό URL αναζήτησης στο Xing με τα keywords που θέλουμε
         search_query = "SaaS engineering AI Automation web scraping python scripts freelance contract project"
         xing_search_url = f"https://www.xing.com/jobs/search?keywords={requests.utils.quote(search_query)}"
         jina_url = f"https://r.jina.ai/{xing_search_url}"
@@ -92,20 +115,19 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
             st.error(f"❌ Αποτυχία σύνδεσης με Jina: {e}")
             st.stop()
             
-    with st.spinner("🧠 Το GPT-4o-mini φιλτράρει και απομονώνει One-Off Projects..."):
+    with st.spinner("🧠 Το GPT-4o-mini απομονώνει One-Off Projects..."):
         prompt = f"""
         You are an elite data miner specializing in B2B lead generation. Analyze the following scraped text from a Xing search page.
         Identify individual job postings or project listings that STRICTLY match two conditions:
         1. Core Domains: SaaS engineering, AI Automation, web scraping, or Python scripting.
         2. Job Type: Must be a One-time project, Freelance gig, Contract-based, Temporary assignment, or Outsourcing request (NOT permanent full-time roles). Look for keywords like 'Freelance', 'Contract', 'Project', 'Temporary', 'Freier Mitarbeiter'.
 
-        For ANY strictly matching job/project, extract the Company Name, a brief requirements summary highlighting the project nature, the link to the job (if visible, else leave blank), and estimate the official website domain of that company (e.g., 'company.com' or 'company.de') required for Apollo API lookups.
+        For ANY strictly matching job/project, extract the Company Name, a brief requirements summary highlighting the project nature, and the link to the job (if visible, else leave blank). Do NOT try to guess the company domain.
         
         Output strictly as a valid JSON list of objects with this exact format:
         [
             {{
                 "company_name": "Example GmbH",
-                "company_domain": "example.de",
                 "summary": "[Freelance Project] Need a Python script to automate data sync between SaaS platforms.",
                 "link": "https://xing.com/jobs/...",
                 "has_match": 1
@@ -125,7 +147,6 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
                 temperature=0.1
             )
             
-            # ✅ ΔΙΟΡΘΩΣΗ: Απόδοση του αποτελέσματος στη μεταβλητή gpt_out
             gpt_out = response_gpt.choices[0].message.content
             
             if "```json" in gpt_out:
@@ -141,51 +162,74 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
                 st.success(f"🎯 Βρέθηκαν {len(jobs)} projects που ταιριάζουν απόλυτα!")
                 
                 for job in jobs:
-                    st.markdown(f"### 🏢 Εταιρεία: {job['company_name']}")
+                    company_name_clean = job.get("company_name", "").strip()
+                    st.markdown(f"### 🏢 Εταιρεία: {company_name_clean}")
                     st.write(f"📝 **Σύνοψη Έργου:** {job['summary']}")
-                    st.write(f"🌐 **Υπολογισμένο Domain:** {job['company_domain']}")
                     
-                    # 🔵 Χτύπημα στο Apollo API
-                    domain = job.get("company_domain", "")
                     contacts_list = []
                     
-                    if domain:
-                        with st.spinner(f"📞 Αναζήτηση Decision Makers στο Apollo για την {job['company_name']}..."):
-                            apollo_data = search_apollo_contacts(domain)
-                            if apollo_data and "people" in apollo_data: # Στο mixed_people το key είναι 'people' αντί για 'contacts'
-                                for person in apollo_data["people"]:
-                                    name = person.get("name", "N/A")
-                                    title = person.get("title", "N/A")
-                                    email = person.get("email", "🔒 Μη διαθέσιμο")
-                                    contacts_list.append(f"{name} ({title}) -> {email}")
-                                    st.write(f"👤 **{name}** - {title} | 📧 {email}")
-                            else:
-                                st.write("⚠️ Δεν βρέθηκαν κατάλληλα στελέχη στο Apollo για αυτό το domain.")
+                    if company_name_clean:
+                        with st.spinner(f"🔍 Αναζήτηση επίσημου Domain στο Apollo για την '{company_name_clean}'..."):
+                            actual_domain = get_apollo_company_domain(company_name_clean)
+                            
+                        if actual_domain:
+                            st.write(f"🌐 **Επαληθευμένο Domain:** {actual_domain}")
+                            with st.spinner(f"📞 Άντληση Decision Makers από το Apollo..."):
+                                apollo_data = search_apollo_contacts(actual_domain)
+                                
+                                people_data = []
+                                if apollo_data:
+                                    if "people" in apollo_data:
+                                        people_data = apollo_data["people"]
+                                    elif "contacts" in apollo_data:
+                                        people_data = apollo_data["contacts"]
+                                
+                                if people_data:
+                                    for person in people_data:
+                                        name = person.get("name", "N/A")
+                                        title = person.get("title", "N/A")
+                                        email = person.get("email", "🔒 Μη διαθέσιμο")
+                                        contacts_list.append(f"{name} ({title}) -> {email}")
+                                        st.write(f"👤 **{name}** - {title} | 📧 {email}")
+                                else:
+                                    st.write("⚠️ Δεν βρέθηκαν κατάλληλα στελέχη στο Apollo για αυτό το domain.")
+                        else:
+                            st.write("❌ Η εταιρεία δεν εντοπίστηκε στη βάση του Apollo.")
                     
-                    # 💾 Αποθήκευση στην SQLite
+                    # 💾 Αποθήκευση στην SQLite (Κρατάμε μόνο όσα βρήκαν πραγματικά contacts)
+                    final_contacts = " | ".join(contacts_list) if contacts_list else "No contacts"
+                    
                     conn = sqlite3.connect("does4u_leads.db")
                     cursor = conn.cursor()
                     cursor.execute("""
                         INSERT INTO leads (company_name, summary, link, email_content, has_match)
                         VALUES (?, ?, ?, ?, 1)
-                    """, (job['company_name'], job['summary'], job['link'], " | ".join(contacts_list) if contacts_list else "No contacts"))
+                    """, (company_name_clean, job['summary'], job['link'], final_contacts))
                     conn.commit()
                     conn.close()
-                    st.caption("💾 Αποθηκεύτηκε στη βάση δεδομένων.")
+                    st.caption("💾 Αποθηκεύτηκε στο ιστορικό.")
                     st.markdown("---")
                     
         except Exception as e:
             st.error(f"❌ Σφάλμα κατά την επεξεργασία: {e}")
 
-# 🗄️ Προβολή Ιστορικού Βάσης Δεδομένων
-st.subheader("🗄️ Αποθηκευμένα Match Leads (SQLite)")
+# 🗄️ Προβολή Ιστορικού Βάσης Δεδομένων (Μόνο Επιτυχείς Επαφές)
+st.subheader("🗄️ Αποθηκευμένα Match Leads με Contacts (SQLite)")
 try:
     conn = sqlite3.connect("does4u_leads.db")
-    df = pd.read_sql_query("SELECT company_name, summary, email_content, timestamp FROM leads WHERE has_match=1 ORDER BY id DESC", conn)
+    # ✅ Φίλτρο ώστε να επιστρέφει ΜΟΝΟ τα πραγματικά matches που έχουν βρει email/contacts
+    query = """
+        SELECT company_name, summary, email_content, timestamp 
+        FROM leads 
+        WHERE has_match = 1 AND email_content != 'No contacts' 
+        ORDER BY id DESC
+    """
+    df = pd.read_sql_query(query, conn)
     conn.close()
+    
     if not df.empty:
         st.dataframe(df, use_container_width=True)
     else:
-        st.write("Η βάση είναι ακόμα άδεια.")
+        st.write("Δεν υπάρχουν ακόμα αποθηκευμένα matches με διαθέσιμα στοιχεία επικοινωνίας.")
 except:
-    st.write("Δεν βρέθηκε υπάρχουσα βάση δεδομένων.")
+    st.write("Δεν βρέθηκε η βάση δεδομένων ή είναι άδεια.")
