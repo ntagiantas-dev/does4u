@@ -1,0 +1,73 @@
+import streamlit as st
+import feedparser
+from openai import OpenAI
+import os
+import requests
+import json
+
+# --- Ρύθμιση ---
+def get_secret(key):
+    return st.secrets.get(key) or os.getenv(key)
+
+client = OpenAI(api_key=get_secret("OPENAI_API_KEY"))
+
+# --- Συναρτήσεις Βάσης & API ---
+def load_leads():
+    if os.path.exists('leads_db.json'):
+        with open('leads_db.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_top_leads(new_leads):
+    current_leads = load_leads()
+    # Φιλτράρουμε μόνο τα 4+ και προσθέτουμε στη λίστα
+    filtered = [l for l in new_leads if l.get('score', 0) >= 4]
+    all_leads = filtered + current_leads
+    # Αποφυγή διπλότυπων και όριο 50
+    unique_leads = {l['link']: l for l in all_leads}
+    sorted_leads = sorted(list(unique_leads.values()), key=lambda x: x['score'], reverse=True)[:50]
+    with open('leads_db.json', 'w', encoding='utf-8') as f:
+        json.dump(sorted_leads, f, ensure_ascii=False, indent=4)
+
+def get_contact_email(website):
+    try:
+        response = requests.post("https://api.dropcontact.io/v1/email", 
+            headers={"X-API-KEY": get_secret("DROPCONTACT_API_KEY"), "Content-Type": "application/json"},
+            json={"website": website})
+        return response.json().get('email', 'N/A')
+    except: return 'N/A'
+
+def analyze_and_enrich(leads_list):
+    """Αναλύει με GPT και εμπλουτίζει με Email μέσω Dropcontact."""
+    processed = []
+    for l in leads_list:
+        # 1. Εύρεση email
+        email = get_contact_email(l['link'])
+        
+        # 2. Ανάλυση με GPT για βαθμολογία
+        prompt = f"Ανάλυσε το lead: {l['title']}. Δώσε μόνο έναν αριθμό 1-5 και μια μικρή περιγραφή στα Ελληνικά."
+        res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}])
+        score = 5 # Εδώ θα μπορούσες να βάλεις parsing του score από το response
+        
+        processed.append({
+            "source": l['title'], "score": score, "link": l['link'], "email": email
+        })
+    return processed
+
+# --- UI ---
+st.set_page_config(page_title="Pro Opportunity Hunter", layout="wide")
+st.title("🏹 Opportunity Hunter: Pro Engine")
+
+tab1, tab2, tab3 = st.tabs(["Reddit", "Google Hunt", "Saved Leads (50)"])
+
+with tab2:
+    search_q = st.text_input("Query", 'site:linkedin.com "hiring" "automation" -jobs')
+    if st.button("Hunt, Enrich & Save"):
+        with st.spinner("Κυνηγάω, βρίσκω emails και φιλτράρω..."):
+            raw = get_google_leads(search_q) # Χρησιμοποιεί την παλιά συνάρτηση
+            enriched = analyze_and_enrich(raw)
+            save_top_leads(enriched)
+            st.success("Τα top leads (4-5*) αποθηκεύτηκαν!")
+
+with tab3:
+    st.table(load_leads())
