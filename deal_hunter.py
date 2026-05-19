@@ -1,63 +1,37 @@
 import streamlit as st
-import os
-import requests
-import json
-from openai import OpenAI
+import feedparser
 
-# --- CONFIG & SETUP ---
-def get_key(k): return st.secrets.get(k) or os.getenv(k)
-client = OpenAI(api_key=get_key("OPENAI_API_KEY"))
+# Λίστα με RSS feeds από Reddit (π.χ. r/forhire, r/slavelabour, r/automation)
+FEEDS = {
+    "ForHire": "https://www.reddit.com/r/forhire/new/.rss",
+    "SlaveLabour": "https://www.reddit.com/r/slavelabour/new/.rss",
+    "Automation": "https://www.reddit.com/r/automation/new/.rss"
+}
 
-def scrape_target(url):
-    jina_url = f"https://r.jina.ai/{url}"
-    headers = {"Authorization": f"Bearer {get_key('JINA_API_KEY')}"} if get_key("JINA_API_KEY") else {}
-    try:
-        response = requests.get(jina_url, headers=headers, timeout=30)
-        return response.text if response.status_code == 200 else f"Error: Status {response.status_code}"
-    except Exception as e:
-        return f"Error: {str(e)}"
+def get_leads(keywords):
+    all_leads = []
+    for name, url in FEEDS.items():
+        feed = feedparser.parse(url)
+        st.write(f"--- Checking {name} ({len(feed.entries)} total posts) ---") # Debugging: Θα δούμε αν παίρνει δεδομένα
+        for entry in feed.entries[:10]: # Κοιτάμε τα 10 τελευταία
+            # Αν τα keywords είναι κενά, εμφάνισε τα όλα για δοκιμή
+            if not keywords or any(k.lower() in entry.title.lower() for k in keywords):
+                all_leads.append({"source": name, "title": entry.title, "link": entry.link})
+    return all_leads
 
-def analyze_relevance(text_data):
-    # Κόβουμε το κείμενο στους πρώτους 15.000 χαρακτήρες (αρκούν για να βρει το project)
-    trimmed_text = text_data[:15000] 
-    
-    prompt = f"Analyze this job: {trimmed_text}. Return JSON: {{\"relevant\": true/false, \"reason\": \"string\", \"keywords\": [], \"client_entity\": \"string\"}}"
-    
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini", # Χρησιμοποίησε το mini για να γλιτώσεις credits και errors
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"}
-    )
-    return json.loads(resp.choices[0].message.content)
+st.title("🏹 Opportunity Hunter: Reddit Monitor")
 
-# --- UI ---
-st.title("🏹 The Hunter: Jina On The Rocks")
-url = st.text_input("Project URL")
+# Βάλε εδώ τα keywords που σε ενδιαφέρουν
+keywords_input = st.text_input("Keywords (χωρισμένα με κόμμα)", "scraping, automation, script, help")
+keywords = [k.strip() for k in keywords_input.split(",")]
 
-if st.button("Start Hunting"):
-    with st.status("Hunting...", expanded=True) as status:
-        # 1. SCRAPE
-        st.write("Scraping URL...")
-        job_text = scrape_target(url)
-        
-        if not job_text or "Error" in job_text or len(job_text) < 50:
-            st.error(f"Scraping failed or returned empty data: {job_text}")
+if st.button("Find Opportunities"):
+    with st.spinner("Hunting..."):
+        leads = get_leads(keywords)
+        if leads:
+            for lead in leads:
+                st.markdown(f"**[{lead['source']}]** {lead['title']}")
+                st.write(f"[Link]({lead['link']})")
+                st.divider()
         else:
-            st.write(f"Scraped {len(job_text)} characters.")
-            
-            # 2. ANALYZE
-            try:
-                st.write("Sending to OpenAI...")
-                analysis = analyze_relevance(job_text[:12000]) # Σίγουρο κόψιμο
-                
-                # Εμφάνιση αποτελέσματος
-                if analysis.get("relevant"):
-                    st.success("🎯 Match Found!")
-                    st.json(analysis)
-                else:
-                    st.warning("Not relevant.")
-                    
-            except Exception as e:
-                st.error(f"OpenAI error: {str(e)}")
-        
-        status.update(label="Hunting finished!", state="complete")
+            st.write("No fresh leads found. Try different keywords.")
