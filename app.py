@@ -45,9 +45,9 @@ def init_db():
 
 init_db()
 
-# 📞 Apollo API Lookup Function
+# 📞 Apollo API Lookup Function (Mixed People Search για Cold Leads)
 def search_apollo_contacts(company_domain):
-    url = "https://api.apollo.io/v1/contacts/search"
+    url = "https://api.apollo.io/v1/mixed_people/search"
     headers = {
         "Cache-Control": "no-cache",
         "Content-Type": "application/json",
@@ -55,7 +55,11 @@ def search_apollo_contacts(company_domain):
     }
     payload = {
         "q_organization_domains": company_domain,
-        "person_titles": ["Recruiter", "HR Manager", "Talent Acquisition", "Human Resources"],
+        "person_titles": [
+            "CTO", "Chief Technology Officer", "Engineering Manager", 
+            "Tech Lead", "Product Manager", "Recruiter", "HR Manager", 
+            "Talent Acquisition", "Human Resources"
+        ],
         "page": 1,
         "per_page": 3
     }
@@ -72,7 +76,7 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
     with st.spinner("🕷️ Η Jina AI ξεσκονίζει το Xing για αγγελίες..."):
         
         # Σταθερό URL αναζήτησης στο Xing με τα keywords που θέλουμε
-        search_query = "SaaS engineering AI Automation web scraping python scripts"
+        search_query = "SaaS engineering AI Automation web scraping python scripts freelance contract project"
         xing_search_url = f"https://www.xing.com/jobs/search?keywords={requests.utils.quote(search_query)}"
         jina_url = f"https://r.jina.ai/{xing_search_url}"
         
@@ -88,23 +92,26 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
             st.error(f"❌ Αποτυχία σύνδεσης με Jina: {e}")
             st.stop()
             
-    with st.spinner("🧠 Το GPT-4o-mini φιλτράρει και απομονώνει τα απαραίτητα στοιχεία..."):
+    with st.spinner("🧠 Το GPT-4o-mini φιλτράρει και απομονώνει One-Off Projects..."):
         prompt = f"""
-        You are an elite data miner. Analyze the following scraped text from a Xing search page.
-        Identify individual job postings that strictly match these domains: SaaS engineering, AI Automation, web scraping, or Python scripting.
-        For ANY matching job, extract the Company Name, a very brief requirements summary, the link to the job (if visible, else leave blank), and estimate the official website domain of that company (e.g., 'company.com' or 'company.de') which is required for Apollo API lookups.
+        You are an elite data miner specializing in B2B lead generation. Analyze the following scraped text from a Xing search page.
+        Identify individual job postings or project listings that STRICTLY match two conditions:
+        1. Core Domains: SaaS engineering, AI Automation, web scraping, or Python scripting.
+        2. Job Type: Must be a One-time project, Freelance gig, Contract-based, Temporary assignment, or Outsourcing request (NOT permanent full-time roles). Look for keywords like 'Freelance', 'Contract', 'Project', 'Temporary', 'Freier Mitarbeiter'.
+
+        For ANY strictly matching job/project, extract the Company Name, a brief requirements summary highlighting the project nature, the link to the job (if visible, else leave blank), and estimate the official website domain of that company (e.g., 'company.com' or 'company.de') required for Apollo API lookups.
         
         Output strictly as a valid JSON list of objects with this exact format:
         [
             {{
                 "company_name": "Example GmbH",
                 "company_domain": "example.de",
-                "summary": "Looking for Python automation engineer",
+                "summary": "[Freelance Project] Need a Python script to automate data sync between SaaS platforms.",
                 "link": "https://xing.com/jobs/...",
                 "has_match": 1
             }}
         ]
-        If no strict matches exist, return an empty list [].
+        If no strict freelance/project matches exist, return an empty list [].
 
         Scraped Content:
         {raw_text[:6000]}
@@ -118,7 +125,9 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
                 temperature=0.1
             )
             
-            gpt_out = response_gpt.choices[0].message.content.strip()
+            # ✅ ΔΙΟΡΘΩΣΗ: Απόδοση του αποτελέσματος στη μεταβλητή gpt_out
+            gpt_out = response_gpt.choices[0].message.content
+            
             if "```json" in gpt_out:
                 gpt_out = gpt_out.split("```json")[1].split("```")[0].strip()
             elif "```" in gpt_out:
@@ -127,31 +136,31 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
             jobs = json.loads(gpt_out)
             
             if not jobs:
-                st.info("😴 Δεν βρέθηκαν αγγελίες με strict match σε αυτή τη ροή.")
+                st.info("😴 Δεν βρέθηκαν αγγελίες για One-Off Projects με strict match σε αυτή τη ροή.")
             else:
-                st.success(f"🎯 Βρέθηκαν {len(jobs)} αγγελίες που ταιριάζουν απόλυτα!")
+                st.success(f"🎯 Βρέθηκαν {len(jobs)} projects που ταιριάζουν απόλυτα!")
                 
                 for job in jobs:
                     st.markdown(f"### 🏢 Εταιρεία: {job['company_name']}")
-                    st.write(f"📝 **Σύνοψη:** {job['summary']}")
+                    st.write(f"📝 **Σύνοψη Έργου:** {job['summary']}")
                     st.write(f"🌐 **Υπολογισμένο Domain:** {job['company_domain']}")
                     
-                    # 🔵 Χτύπημα στο Apollo API αφού έχουμε Match!
+                    # 🔵 Χτύπημα στο Apollo API
                     domain = job.get("company_domain", "")
                     contacts_list = []
                     
                     if domain:
-                        with st.spinner(f"📞 Αναζήτηση HR/Recruiters στο Apollo για την {job['company_name']}..."):
+                        with st.spinner(f"📞 Αναζήτηση Decision Makers στο Apollo για την {job['company_name']}..."):
                             apollo_data = search_apollo_contacts(domain)
-                            if apollo_data and "contacts" in apollo_data:
-                                for contact in apollo_data["contacts"]:
-                                    name = contact.get("name", "N/A")
-                                    title = contact.get("title", "N/A")
-                                    email = contact.get("email", "🔒 Μη διαθέσιμο")
+                            if apollo_data and "people" in apollo_data: # Στο mixed_people το key είναι 'people' αντί για 'contacts'
+                                for person in apollo_data["people"]:
+                                    name = person.get("name", "N/A")
+                                    title = person.get("title", "N/A")
+                                    email = person.get("email", "🔒 Μη διαθέσιμο")
                                     contacts_list.append(f"{name} ({title}) -> {email}")
                                     st.write(f"👤 **{name}** - {title} | 📧 {email}")
                             else:
-                                st.write("⚠️ Δεν βρέθηκαν στελέχη στο Apollo για αυτό το domain.")
+                                st.write("⚠️ Δεν βρέθηκαν κατάλληλα στελέχη στο Apollo για αυτό το domain.")
                     
                     # 💾 Αποθήκευση στην SQLite
                     conn = sqlite3.connect("does4u_leads.db")
