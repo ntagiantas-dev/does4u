@@ -45,28 +45,17 @@ def init_db():
 
 init_db()
 
-# 1️⃣ Apollo API: Εύρεση Επίσημου Domain βάσει Ονόματος Εταιρείας (Όχι μαντεψιές)
-def get_apollo_company_domain(company_name):
-    url = "https://api.apollo.io/v1/organizations/search"
-    headers = {
-        "Cache-Control": "no-cache",
-        "Content-Type": "application/json",
-        "X-Api-Key": APOLLO_KEY
-    }
-    payload = {
-        "q_organization_name": company_name,  # Strict αναζήτηση με το ακριβές όνομα
-        "page": 1,
-        "per_page": 1
-    }
+# 1️⃣ Εύρεση Επίσημου Domain μέσω Clearbit (Παράκαμψη του Apollo Org Search)
+def get_clearbit_company_domain(company_name):
+    url = f"https://autocomplete.clearbit.com/v1/companies/suggest?query={requests.utils.quote(company_name)}"
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.get(url, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            organizations = data.get("organizations", [])
-            if organizations:
-                # Επιστρέφει το πραγματικό domain της συγκεκριμένης εταιρείας
-                actual_domain = organizations[0].get("primary_domain") or organizations[0].get("domain")
-                return actual_domain
+            if data and len(data) > 0:
+                actual_domain = data[0].get("domain")
+                if actual_domain:
+                    return actual_domain
         return None
     except:
         return None
@@ -171,8 +160,9 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
                     contacts_list = []
                     
                     if company_name_clean:
-                        with st.spinner(f"🔍 Αναζήτηση επίσημου Domain στο Apollo για την '{company_name_clean}'..."):
-                            actual_domain = get_apollo_company_domain(company_name_clean)
+                        with st.spinner(f"🔍 Αναζήτηση επίσημου Domain μέσω Clearbit για την '{company_name_clean}'..."):
+                            # Κλήση στη νέα Clearbit συνάρτηση
+                            actual_domain = get_clearbit_company_domain(company_name_clean)
                             
                         if actual_domain:
                             st.write(f"🌐 **Επαληθευμένο Domain:** {actual_domain}")
@@ -196,9 +186,9 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
                                 else:
                                     st.write("⚠️ Δεν βρέθηκαν κατάλληλα στελέχη στο Apollo για αυτό το domain.")
                         else:
-                            st.write("❌ Η εταιρεία δεν εντοπίστηκε στη βάση του Apollo.")
+                            st.write("❌ Η εταιρεία δεν εντοπίστηκε βάσει ονόματος.")
                     
-                    # 💾 Αποθήκευση στην SQLite (Κρατάμε μόνο όσα βρήκαν πραγματικά contacts)
+                    # 💾 Αποθήκευση στην SQLite
                     final_contacts = " | ".join(contacts_list) if contacts_list else "No contacts"
                     
                     conn = sqlite3.connect("does4u_leads.db")
@@ -219,7 +209,6 @@ if st.button("🔍 Έναρξη Αυτόματου Scraping & Φιλτραρίσ
 st.subheader("🗄️ Αποθηκευμένα Match Leads με Contacts (SQLite)")
 try:
     conn = sqlite3.connect("does4u_leads.db")
-    # ✅ Φίλτρο ώστε να επιστρέφει ΜΟΝΟ τα πραγματικά matches που έχουν βρει email/contacts
     query = """
         SELECT company_name, summary, email_content, timestamp 
         FROM leads 
