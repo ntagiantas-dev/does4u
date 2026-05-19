@@ -11,7 +11,6 @@ def get_secret(key):
 
 client = OpenAI(api_key=get_secret("OPENAI_API_KEY"))
 
-# RSS Feeds
 FEEDS = {
     "ForHire": "https://www.reddit.com/r/forhire/new/.rss",
     "SlaveLabour": "https://www.reddit.com/r/slavelabour/new/.rss",
@@ -19,27 +18,34 @@ FEEDS = {
 }
 
 # --- Συναρτήσεις ---
-def translate_to_greek(text):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Είσαι μεταφραστής αγγελιών. Μετάφρασε τον τίτλο στα Ελληνικά διατηρώντας το νόημα. Δώσε μόνο το αποτέλεσμα."},
-                {"role": "user", "content": text}
-            ],
-            temperature=0.3
-        )
-        return response.choices[0].message.content
-    except:
-        return text
+def analyze_leads_with_gpt(leads_list):
+    """Στέλνει τα αποτελέσματα στο GPT για ταξινόμηση και αξιολόγηση."""
+    formatted_data = "\n".join([f"- Title: {l['title']}\n  Snippet: {l.get('snippet', '')}\n  Link: {l['link']}" for l in leads_list])
+    
+    prompt = f"""
+    Είσαι ένας έμπειρος Business Analyst. Ανάλυσε τα παρακάτω leads από τη Google.
+    Δημιούργησε έναν πίνακα με τις εξής στήλες:
+    1. Πηγή (Εταιρεία/Site)
+    2. Ελληνική Περιγραφή (Σύνοψη του τι ζητάνε)
+    3. Βαθμολογία (1-5, όπου 5 είναι άμεση επαγγελματική ευκαιρία)
+    4. Link (Το link που σου έδωσα)
+
+    Αν είναι αγγελία για μόνιμη εργασία (job salary), δώσε χαμηλή βαθμολογία. 
+    Αν είναι project ή ανάγκη για consultant, δώσε υψηλή βαθμολογία.
+    
+    Δεδομένα:
+    {formatted_data}
+    """
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "system", "content": "Δώσε μόνο τον πίνακα σε μορφή Markdown."}, {"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
 
 def get_google_leads(query):
     url = "https://google.serper.dev/search"
     payload = json.dumps({"q": query, "num": 10})
-    headers = {
-        'X-API-KEY': get_secret("SERPER_API_KEY"),
-        'Content-Type': 'application/json'
-    }
+    headers = {'X-API-KEY': get_secret("SERPER_API_KEY"), 'Content-Type': 'application/json'}
     response = requests.request("POST", url, headers=headers, data=payload)
     return response.json().get('organic', [])
 
@@ -49,40 +55,31 @@ def get_reddit_leads(keywords):
         feed = feedparser.parse(url)
         for entry in feed.entries[:10]:
             if not keywords or any(k.lower() in entry.title.lower() for k in keywords):
-                all_leads.append({
-                    "source": name, 
-                    "title": entry.title, 
-                    "greek_title": translate_to_greek(entry.title),
-                    "link": entry.link
-                })
+                all_leads.append({"source": name, "title": entry.title, "link": entry.link})
     return all_leads
 
 # --- UI ---
-st.set_page_config(page_title="Opportunity Hunter", page_icon="🏹")
-st.title("🏹 Opportunity Hunter: Pro Edition")
+st.set_page_config(page_title="Opportunity Hunter", page_icon="🏹", layout="wide")
+st.title("🏹 Opportunity Hunter: Pro Analysis")
 
-tab1, tab2 = st.tabs(["Reddit (RSS)", "Google (Search)"])
+tab1, tab2 = st.tabs(["Reddit (RSS)", "Google (Search & Analyze)"])
 
 with tab1:
-    keywords_input = st.text_input("Keywords για Reddit", "scraping, automation, script")
-    keywords = [k.strip() for k in keywords_input.split(",")] if keywords_input else []
+    keywords_input = st.text_input("Keywords", "scraping, automation, script")
     if st.button("Hunt Reddit"):
-        leads = get_reddit_leads(keywords)
+        leads = get_reddit_leads([k.strip() for k in keywords_input.split(",")])
         for lead in leads:
-            st.markdown(f"### 🇬🇷 {lead['greek_title']}")
-            st.caption(f"Πηγή: {lead['source']}")
+            st.markdown(f"**[{lead['source']}]** {lead['title']}")
             st.write(f"[Link]({lead['link']})")
             st.divider()
 
 with tab2:
-    search_q = st.text_input("Τι ψάχνουμε στη Google (π.χ. site:linkedin.com 'automation hire')", 'site:linkedin.com "hiring" "automation"')
-    if st.button("Hunt Google"):
+    search_q = st.text_input("Query", 'site:linkedin.com "hiring" "automation" -jobs')
+    if st.button("Hunt & Analyze Google"):
         if not get_secret("SERPER_API_KEY"):
-            st.error("Το SERPER_API_KEY λείπει από τα Secrets!")
+            st.error("Το SERPER_API_KEY λείπει!")
         else:
-            leads = get_google_leads(search_q)
-            for lead in leads:
-                st.subheader(lead['title'])
-                st.write(lead.get('snippet', ''))
-                st.link_button("Δες το Post", lead['link'])
-                st.divider()
+            with st.spinner("Αναλύω και βαθμολογώ τα leads..."):
+                leads = get_google_leads(search_q)
+                table = analyze_leads_with_gpt(leads)
+                st.markdown(table)
