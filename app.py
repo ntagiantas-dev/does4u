@@ -47,14 +47,14 @@ init_db()
 
 # 1️⃣ Apollo API: Εύρεση Επίσημου Domain βάσει Ονόματος Εταιρείας (Όχι μαντεψιές)
 def get_apollo_company_domain(company_name):
-    url = "https://api.apollo.io/v1/accounts/search"
+    url = "https://api.apollo.io/v1/organizations/search"  # <--- ΑΛΛΑΓΗ ΣΤΟ ΣΩΣΤΟ ENDPOINT
     headers = {
         "Cache-Control": "no-cache",
         "Content-Type": "application/json",
         "X-Api-Key": APOLLO_KEY
     }
     payload = {
-        "q_organization_name": company_name,
+        "q_organization_keyword": company_name, # Ψάχνει παντού με βάση το όνομα
         "page": 1,
         "per_page": 1
     }
@@ -62,9 +62,12 @@ def get_apollo_company_domain(company_name):
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
             data = response.json()
-            accounts = data.get("accounts", [])
-            if accounts:
-                return accounts[0].get("domain")
+            # Το endpoint /organizations/search επιστρέφει μια λίστα "organizations"
+            organizations = data.get("organizations", [])
+            if organizations:
+                # Παίρνουμε το domain της πρώτης εταιρείας που ταιριάζει
+                actual_domain = organizations[0].get("primary_domain") or organizations[0].get("domain")
+                return actual_domain
         return None
     except:
         return None
