@@ -47,7 +47,16 @@ init_db()
 
 # 1️⃣ Εύρεση Επίσημου Domain μέσω Clearbit (Παράκαμψη του Apollo Org Search)
 def get_clearbit_company_domain(company_name):
-    url = f"https://autocomplete.clearbit.com/v1/companies/suggest?query={requests.utils.quote(company_name)}"
+    # 🔥 ΚΑΘΑΡΙΣΜΟΣ ΟΝΟΜΑΤΟΣ: Κρατάμε μόνο το κομμάτι πριν από παύλες, κάθετους κλπ.
+    clean_name = company_name.split('-')[0].split('|')[0].split('/')[0].strip()
+    
+    # Αφαιρούμε και τα κλασικά γερμανικά εταιρικά σuffixes που χαλάνε το search
+    for suffix in ["GmbH", "KG", "AG", "Co.", "e.V."]:
+        clean_name = clean_name.replace(suffix, "")
+    
+    clean_name = clean_name.strip()
+
+    url = f"https://autocomplete.clearbit.com/v1/companies/suggest?query={requests.utils.quote(clean_name)}"
     try:
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
