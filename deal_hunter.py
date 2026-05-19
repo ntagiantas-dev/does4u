@@ -5,29 +5,29 @@ import json
 from scrapegraphai.graphs import SmartScraperGraph
 from openai import OpenAI
 
-# --- CONFIG ---
+# --- CONFIG & SETUP ---
 def get_key(k): return st.secrets.get(k) or os.getenv(k)
 client = OpenAI(api_key=get_key("OPENAI_API_KEY"))
 
-# 1. ScrapeGraph: Επιθετική ρύθμιση για ανθεκτικότητα
-def scrape_upwork(url):
-    # Εδώ ενεργοποιούμε τον browser με stealth για να αποφύγουμε τα blocks
+# 1. ScrapeGraph: Επιθετική ρύθμιση για το Freelancer
+def scrape_target(url, cookies=None):
+    # Τα headers βοηθούν να μη σε αναγνωρίζει ως bot
     graph_config = {
-        "llm": {"api_key": get_key("OPENAI_API_KEY"), "model": "gpt-4o"},
-        "headless": False, 
+        "llm": {"api_key": get_key("OPENAI_API_KEY"), "model_name": "gpt-4o"},
+        "headless": True,
         "verbose": True,
-        "use_stealth": True,  # Εξαιρετικά σημαντικό για το Upwork
-        "browser": "chromium"
+        "browser": "chromium",
+        "cookies": cookies if cookies else None,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
     prompt = """
-    Extract from this Upwork job:
-    1. Job Title.
-    2. Detailed Description.
-    3. Client History/Feedback Link (crucial).
-    4. Verify if it is a 'one-time project' (True/False).
-    5. Client/Company Name if visible.
-    Do not return NA. If page is blocked or empty, return {"error": "BLOCKED"}.
+    Analyze the project page. Extract:
+    - job_title: The main project title.
+    - project_description: Detailed requirements.
+    - budget_range: The provided budget.
+    - client_name: If visible in reviews or bio.
+    - company_website: If mentioned in the description.
     """
     
     try:
@@ -36,23 +36,12 @@ def scrape_upwork(url):
     except Exception as e:
         return {"error": str(e)}
 
-# 2. GPT-4o: Ποιοτική Ανάλυση & Keyword Extraction
-def filter_and_analyze(job_data):
-    if not job_data or "error" in job_data:
-        return {"relevant": False, "reason": "Scraping failed or was blocked."}
-
+# 2. GPT-4o: Ανάλυση & Intent
+def analyze_relevance(data):
     prompt = f"""
-    Analyze job: {json.dumps(job_data)}
-    
-    CRITERIA (STRICT):
-    - Must be a ONE-TIME project.
-    - Must involve: Web Scraping, AI Automation, Lead Gen, Growth Hacking, or SaaS Engineering.
-    
-    TASKS:
-    - Extract ONLY the 'golden' keywords from the job and history.
-    - Identify Client/Company name.
-    
-    Return VALID JSON: {{"relevant": true/false, "reason": "...", "keywords": ["k1", "k2"], "client_name": "...", "company_name": "..."}}
+    Analyze job data: {json.dumps(data)}
+    Is this a one-time AI/Scraping/Automation project?
+    Return ONLY JSON: {{"relevant": boolean, "reason": "string", "keywords": [".."], "client_entity": "string"}}
     """
     resp = client.chat.completions.create(
         model="gpt-4o",
@@ -61,43 +50,41 @@ def filter_and_analyze(job_data):
     )
     return json.loads(resp.choices[0].message.content)
 
-# 3. Jina + GPT: Καθαρισμός Website URL
-def get_clean_website(client_name, company_name):
-    # Αναζήτηση μέσω Jina
-    jina_url = f"https://r.jina.ai/search?q=official+website+for+{client_name}+{company_name}"
-    raw_text = requests.get(jina_url).text
-    
-    # LLM για καθαρισμό του URL
-    prompt = f"From this text, extract ONLY the official company website URL. If none, return 'None': {raw_text[:1000]}"
-    url_resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}])
-    return url_resp.choices[0].message.content.strip()
+# 3. Enrichment Flow
+def enrich_data(entity):
+    # Εδώ θα γίνει το call στο Dropcontact ή LinkedIn API
+    return {"email": "found_email@example.com", "status": "verified"}
 
-# --- UI EXECUTION ---
-st.title("🏹 The Hunter: Pro Scraper")
-url = st.text_input("Upwork Job URL")
+# --- UI ---
+st.set_page_config(page_title="The Hunter Pro", layout="wide")
+st.title("🏹 The Hunter: Freelancer Scraper")
+
+url = st.text_input("Freelancer/Upwork Project URL")
+# Προαιρετικά cookies αν το site μας ζορίζει
+cookies_input = st.text_area("Cookies (Optional, JSON format):")
 
 if st.button("Start Hunting"):
-    with st.spinner("🕵️‍♂️ Browser running..."):
-        job = scrape_upwork(url)
+    cookies = json.loads(cookies_input) if cookies_input else None
+    
+    with st.status("Hunting...", expanded=True) as status:
+        st.write("Scraping...")
+        job_data = scrape_target(url, cookies)
         
-        if "error" in str(job):
-            st.error("Το Upwork μπλόκαρε το request (Cloudflare). Δοκίμασε να προσθέσεις cookies στο config.")
+        if "error" in str(job_data):
+            st.error(f"Failed: {job_data}")
         else:
-            analysis = filter_and_analyze(job)
+            st.write("Analyzing...")
+            analysis = analyze_relevance(job_data)
             
-            if analysis.get("relevant"):
-                st.success("🎯 Found a perfect match!")
-                st.write("Keywords:", analysis.get("keywords"))
+            if analysis["relevant"]:
+                st.success(f"🎯 Match! Reason: {analysis['reason']}")
+                st.write(f"Keywords: {analysis['keywords']}")
                 
-                # Enrichment
-                with st.spinner("Enriching contact info..."):
-                    website = get_clean_website(analysis.get("client_name"), analysis.get("company_name"))
-                    st.write("Website identified:", website)
-                    
-                    if website != "None":
-                        # Call Dropcontact
-                        st.info("Calling Dropcontact API...")
-                        # email_data = get_email(...) 
-                        st.balloons()
+                st.write("Enriching...")
+                contact = enrich_data(analysis['client_entity'])
+                st.json(contact)
+                st.balloons()
             else:
-                st.warning(f"❌ Not relevant: {analysis.get('reason')}")
+                st.warning(f"⏭️ Ignored: {analysis['reason']}")
+        
+        status.update(label="Hunting finished!", state="complete")
