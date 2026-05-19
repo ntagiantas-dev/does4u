@@ -14,25 +14,21 @@ client = OpenAI(api_key=get_secret("OPENAI_API_KEY"))
 # --- Συναρτήσεις ---
 def load_leads():
     file_path = 'leads_db.json'
-    # Αν το αρχείο δεν υπάρχει ή είναι άδειο, επέστρεψε κενή λίστα
     if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
         return []
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except (json.JSONDecodeError, EOFError):
-        # Αν το αρχείο είναι κατεστραμμένο, επέστρεψε κενή λίστα και καθάρισε το αρχείο
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump([], f)
+    except Exception:
         return []
 
 def get_contact_email(website):
     try:
         key = get_secret("DROPCONTACT_API_KEY")
-        if not key: return "N/A"
+        if not key or not website: return "N/A"
         response = requests.post("https://api.dropcontact.io/v1/email", 
             headers={"X-API-KEY": key, "Content-Type": "application/json"},
-            json={"website": website})
+            json={"website": website}, timeout=10)
         return response.json().get('email', 'N/A')
     except: return 'N/A'
 
@@ -40,18 +36,44 @@ def analyze_and_enrich(leads_list):
     processed = []
     for l in leads_list:
         website = l.get('link', '')
+        if not website: continue
+        
+        # Εμπλουτισμός με Email
         email = get_contact_email(website)
         
-        prompt = f"Ανάλυσε το post: {l.get('title', '')}. Δώσε βαθμολογία 1-5 (freelance=5, job=1) και ελληνική περιγραφή. Απάντησε μόνο με το σκορ και την περιγραφή."
-        res = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}])
-        score_text = res.choices[0].message.content
-        score = 5 if "5" in score_text else (4 if "4" in score_text else 3)
+        # Αναβαθμισμένο Prompt για το GPT
+        prompt = f"""
+        Είσαι ένας κορυφαίος Lead Qualifier. Ανάλυσε το παρακάτω link/title για ευκαιρίες εργασίας.
+        Title: {l.get('title', '')}
+        Snippet: {l.get('snippet', '')}
         
-        if score >= 4:
-            processed.append({
-                "source": l.get('title', 'Unknown'), "score": score, "link": website, 
-                "email": email, "proposal": "Πρόταση για το project σας..."
-            })
+        Κριτήρια:
+        - Βαθμολόγησε με 5 αν είναι Project, Consulting, ή Freelance ευκαιρία.
+        - Βαθμολόγησε με 1-2 αν είναι μόνιμη θέση εργασίας (Full-time job).
+        - Απάντησε ΑΠΟΚΛΕΙΣΤΙΚΑ με ένα JSON object: {{"score": int, "description": "str"}}
+        """
+        
+        try:
+            res = client.chat.completions.create(
+                model="gpt-4o-mini", 
+                messages=[{"role": "system", "content": "You are a helpful assistant that outputs only JSON."},
+                          {"role": "user", "content": prompt}]
+            )
+            data = json.loads(res.choices[0].message.content)
+            score = data.get("score", 0)
+            desc = data.get("description", "Δεν βρέθηκε περιγραφή.")
+            
+            if score >= 4:
+                processed.append({
+                    "source": l.get('title', 'Unknown'), 
+                    "score": score, 
+                    "link": website, 
+                    "email": email, 
+                    "proposal": f"Γεια σας, είδα το project σας: {desc}. Ειδικεύομαι σε τέτοια θέματα και θα ήθελα να συζητήσουμε."
+                })
+        except:
+            continue
+            
     return processed
 
 def get_google_leads(query):
@@ -63,23 +85,27 @@ def get_google_leads(query):
 
 # --- UI ---
 st.set_page_config(page_title="Hunter Pro", layout="wide")
-st.title("🏹 Opportunity Hunter: Robust System")
+st.title("🏹 Opportunity Hunter: Pro Engine")
 
 tab1, tab2 = st.tabs(["Hunt Leads", "Action Pipeline"])
 
 with tab1:
-    search_q = st.text_input("Query", 'site:linkedin.com "hiring" "automation"')
+    search_q = st.text_input("Query", 'site:linkedin.com "hiring" "automation" "freelance"')
     if st.button("Hunt & Enrich"):
-        with st.spinner("Επεξεργασία..."):
+        with st.spinner("Κυνηγάω leads..."):
             raw = get_google_leads(search_q)
-            enriched = analyze_and_enrich(raw)
-            
-            # Φόρτωση, προσθήκη, αποθήκευση
-            current = load_leads()
-            all_leads = enriched + current
-            with open('leads_db.json', 'w', encoding='utf-8') as f:
-                json.dump(all_leads[:50], f, ensure_ascii=False, indent=4)
-            st.success("Η βάση ενημερώθηκε!")
+            if not raw:
+                st.warning("Δεν βρέθηκαν αποτελέσματα από την Google.")
+            else:
+                enriched = analyze_and_enrich(raw)
+                if not enriched:
+                    st.info("Δεν βρέθηκαν leads με υψηλό σκορ (4-5). Δοκίμασε άλλο query.")
+                else:
+                    current = load_leads()
+                    all_leads = enriched + current
+                    with open('leads_db.json', 'w', encoding='utf-8') as f:
+                        json.dump(all_leads[:50], f, ensure_ascii=False, indent=4)
+                    st.success(f"Βρέθηκαν {len(enriched)} νέα leads και αποθηκεύτηκαν!")
 
 with tab2:
     leads = load_leads()
