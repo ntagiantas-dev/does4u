@@ -36,14 +36,28 @@ url = st.text_input("Project URL")
 
 if st.button("Start Hunting"):
     with st.status("Hunting...", expanded=True) as status:
-        job_text = scrape_target(url) 
-        if "Error" in job_text:
-            st.error(job_text)
+        # 1. SCRAPE
+        st.write("Scraping URL...")
+        job_text = scrape_target(url)
+        
+        if not job_text or "Error" in job_text or len(job_text) < 50:
+            st.error(f"Scraping failed or returned empty data: {job_text}")
         else:
-            analysis = analyze_relevance(job_text)
-            if analysis.get("relevant"):
-                st.success(f"🎯 Match! {analysis.get('reason')}")
-                st.json(analysis)
-            else:
-                st.warning(f"⏭️ Ignored: {analysis.get('reason')}")
-        status.update(label="Finished!", state="complete")
+            st.write(f"Scraped {len(job_text)} characters.")
+            
+            # 2. ANALYZE
+            try:
+                st.write("Sending to OpenAI...")
+                analysis = analyze_relevance(job_text[:12000]) # Σίγουρο κόψιμο
+                
+                # Εμφάνιση αποτελέσματος
+                if analysis.get("relevant"):
+                    st.success("🎯 Match Found!")
+                    st.json(analysis)
+                else:
+                    st.warning("Not relevant.")
+                    
+            except Exception as e:
+                st.error(f"OpenAI error: {str(e)}")
+        
+        status.update(label="Hunting finished!", state="complete")
