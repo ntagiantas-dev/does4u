@@ -152,4 +152,4 @@ landing_html = """
 """
 
 # ✨ Εμφάνιση του Landing Page μέσα στο Streamlit
-components.html(landing_html, height=1400, scroller=True)
+components.html(landing_html, height=1400, scrolling=True)
