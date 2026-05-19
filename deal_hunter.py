@@ -5,19 +5,21 @@ import time
 import streamlit as st
 from openai import OpenAI
 
-# 1. Πλήρως συμβατό setup για Streamlit Secrets και Environment Variables
-def get_secret(key):
-    # Προτεραιότητα στο Streamlit Secrets, μετά στο περιβάλλον (OS)
-    if key in st.secrets:
+# ΑΠΟΛΥΤΑ ΑΣΦΑΛΗΣ ΜΕΘΟΔΟΣ
+def get_config(key):
+    # 1. Πρώτα Streamlit Secrets (αν υπάρχουν)
+    if hasattr(st, "secrets") and key in st.secrets:
         return st.secrets[key]
+    # 2. Μετά Environment Variables
     return os.getenv(key)
 
-# Mapping για να δουλεύει το os.getenv() αν το χρειάζεται κάποιο άλλο library
-for key, value in st.secrets.items():
-    os.environ[key] = str(value)
+OPENAI_API_KEY = get_config("OPENAI_API_KEY")
+DROPCONTACT_API_KEY = get_config("DROPCONTACT_API_KEY")
 
-OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
-DROPCONTACT_API_KEY = get_secret("DROPCONTACT_API_KEY")
+# Αν φτάσουμε εδώ και δεν έχουμε κλειδιά, βγάζουμε ένα φιλικό μήνυμα αντί για crash
+if not OPENAI_API_KEY or not DROPCONTACT_API_KEY:
+    st.error("Δεν βρέθηκαν τα API Keys. Παρακαλώ έλεγξε τα Secrets στο Streamlit Cloud.")
+    st.stop() # Σταματάει την εκτέλεση χωρίς error tracebacks
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
