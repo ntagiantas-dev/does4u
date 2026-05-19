@@ -12,3 +12,4 @@ beautifulsoup4
 firecrawl-py
 pandas
 scrapegraphai
+playwright
