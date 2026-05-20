@@ -11,14 +11,22 @@ GEOAPIFY_KEY = st.secrets["GEOAPIFY_API_KEY"]
 
 # Συναρτήσεις εργαλείων
 def get_coords(row):
-    url = f"https://api.geoapify.com/v1/geocode/search?text={row['address']}, {row['postal code']}, {row['city']}, Greece&apiKey={GEOAPIFY_KEY}"
+    address_query = f"{row['address']}, {row['postal code']}, {row['city']}, Greece"
+    url = "https://api.geoapify.com/v1/geocode/search"
+    params = {
+        "text": address_query,
+        "apiKey": GEOAPIFY_KEY,
+        "format": "json"
+    }
+    
     try:
-        resp = requests.get(url).json()
-        if resp['features']:
-            coords = resp['features'][0]['geometry']['coordinates']
-            return coords[1], coords[0] # lat, lon
-    except:
-        pass
+        # Προσθέτουμε timeout=5 δευτερόλεπτα για να μην κολλάει
+        response = requests.get(url, params=params, timeout=5).json()
+        if 'results' in response and len(response['results']) > 0:
+            res = response['results'][0]
+            return res.get('lat'), res.get('lon')
+    except Exception as e:
+        st.write(f"Σφάλμα στη διεύθυνση {row['address']}: {e}")
     return None, None
 
 # Αρχικοποίηση Session
