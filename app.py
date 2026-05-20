@@ -7,7 +7,7 @@ import threading
 import asyncio
 
 # --- CONFIGURATION ---"
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1o9GrbNipQV-q1vfTYLdeD3vbs7HtKHftgeq3P11XwcU/edit?usp=sharing"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1s1tNfms8eF_Vuo36DDNoEXKDO4qOhiMdcpTSVdYwloM/edit?usp=sharing"
 # Σύνδεση με Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
