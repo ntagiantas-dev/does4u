@@ -3,3 +3,4 @@ st-gsheets-connection
 python-telegram-bot
 pandas
 gspread
+gspread-dataframe

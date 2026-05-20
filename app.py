@@ -1,67 +1,51 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
-from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
-import threading
-import asyncio
+import gspread
 
-# --- CONFIGURATION ---"
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1s1tNfms8eF_Vuo36DDNoEXKDO4qOhiMdcpTSVdYwloM/edit?usp=sharing"
-# Σύνδεση με Google Sheets
-conn = st.connection("gsheets", type=GSheetsConnection)
+# 1. Ρύθμιση σελίδας
+st.set_page_config(page_title="Does4u Manual", layout="wide")
 
-# Διαβάζουμε το Token από τα Streamlit Secrets
-# Στα Secrets έχεις βάλει: HTTP_API_KEY = "..."
-TOKEN = st.secrets["HTTP_API_KEY"]
+# 2. Σύνδεση με Google Sheets (Χρησιμοποιώντας τα Secrets)
+# Στο Streamlit Cloud -> Manage App -> Secrets, πρέπει να έχεις το JSON του service account σου!
+@st.cache_resource
+def get_gspread_client():
+    creds_dict = st.secrets["gcp_service_account"]
+    return gspread.service_account_from_dict(creds_dict)
 
-st.set_page_config(page_title="Does4u Pro", layout="wide")
+gc = get_gspread_client()
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1s1tNfms8eF_Vuo36DDNoEXKDO4qOhiMdcpTSVdYwloM/edit"
 
-# --- INITIALIZATION ---
-if 'df' not in st.session_state: st.session_state.df = pd.DataFrame()
-if 'is_optimized' not in st.session_state: st.session_state.is_optimized = False
+# 3. Λειτουργία ανάγνωσης δεδομένων
+def load_data():
+    sh = gc.open_by_url(SHEET_URL)
+    worksheet = sh.sheet1
+    data = worksheet.get_all_records()
+    return pd.DataFrame(data)
 
-# Σύνδεση με το Google Sheets
-conn = st.connection("gsheets", type=GSheetsConnection)
+st.title("🚚 Does4u - Manual Entry Portal")
 
-# --- BOT LOGIC ---
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    # Προσθήκη στο Google Sheet
-    df_current = conn.read(spreadsheet=SHEET_URL)
-    new_row = pd.DataFrame({
-        'address': [text], 
-        'city': ['N/A'], 
-        'postal code': ['N/A'], 
-        'status': ['Pending'], 
-        'type': ['Παράδοση']
-    })
-    updated_df = pd.concat([df_current, new_row], ignore_index=True)
-    conn.update(spreadsheet=SHEET_URL, data=updated_df)
-    await update.message.reply_text(f"✅ Η στάση '{text}' προστέθηκε!")
+# 4. Φόρμα εισαγωγής (Manual)
+with st.form("entry_form", clear_on_submit=True):
+    address = st.text_input("Γράψε τη διεύθυνση:")
+    city = st.text_input("Πόλη:", value="N/A")
+    status = st.selectbox("Κατάσταση:", ["Pending", "Completed", "Cancelled"])
+    
+    submit = st.form_submit_button("Προσθήκη Στάσης")
+    
+    if submit and address:
+        sh = gc.open_by_url(SHEET_URL)
+        worksheet = sh.sheet1
+        # Προσθήκη νέας γραμμής
+        worksheet.append_row([address, city, 'N/A', status, 'Manual'])
+        st.success(f"Η στάση '{address}' προστέθηκε!")
 
-def run_bot():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    application = ApplicationBuilder().token(TOKEN).build()
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    application.run_polling()
-
-# Εκκίνηση του Bot σε ξεχωριστό thread
-if 'bot_started' not in st.session_state:
-    threading.Thread(target=run_bot, daemon=True).start()
-    st.session_state.bot_started = True
-
-# --- UI ---
-st.title("🚚 Does4u - Professional Driver Portal")
-
-if st.button("🔄 Ανανέωση από Sheets"):
-    st.session_state.df = conn.read(spreadsheet=SHEET_URL)
+# 5. Εμφάνιση δεδομένων
+st.subheader("Τρέχουσες Στάσεις")
+if st.button("🔄 Ανανέωση Λίστας"):
+    st.session_state.df = load_data()
     st.rerun()
 
-if not st.session_state.df.empty:
+if 'df' in st.session_state:
     st.dataframe(st.session_state.df)
 else:
-    st.write("Πατήστε ανανέωση για να δείτε τις στάσεις.")
-
-st.info("Το Telegram Bot είναι ενεργό. Στείλε διευθύνσεις στο bot σου για να πάνε στο Sheet!")
+    st.info("Πατήστε ανανέωση για να δείτε τα δεδομένα.")
