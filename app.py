@@ -1,72 +1,76 @@
 import streamlit as st
 import pandas as pd
 import requests
-import os
 
-st.set_page_config(page_title="Does4u Logistics", layout="wide")
-st.title("🚚 Does4u - Professional Logistics Manager")
+st.set_page_config(page_title="Does4u Pro", layout="wide")
 
-# Φόρτωση API Key
+# --- ΣΤΑΘΕΡΕΣ & CONFIG ---
 GEOAPIFY_KEY = st.secrets["GEOAPIFY_API_KEY"]
 
-# Συναρτήσεις εργαλείων
-def get_coords(row):
-    address_query = f"{row['address']}, {row['postal code']}, {row['city']}, Greece"
-    url = "https://api.geoapify.com/v1/geocode/search"
-    params = {
-        "text": address_query,
-        "apiKey": GEOAPIFY_KEY,
-        "format": "json"
-    }
+# --- FUNCTIONS ---
+def validate_and_process(df):
+    """Έλεγχος δεδομένων και προετοιμασία"""
+    required = ['address', 'city', 'postal code']
+    if not all(col in df.columns for col in required):
+        return False, "Λείπουν στήλες (address, city, postal code)"
     
-    try:
-        # Προσθέτουμε timeout=5 δευτερόλεπτα για να μην κολλάει
-        response = requests.get(url, params=params, timeout=5).json()
-        if 'results' in response and len(response['results']) > 0:
-            res = response['results'][0]
-            return res.get('lat'), res.get('lon')
-    except Exception as e:
-        st.write(f"Σφάλμα στη διεύθυνση {row['address']}: {e}")
-    return None, None
+    # Αρχικοποίηση status αν δεν υπάρχουν
+    if 'status' not in df.columns:
+        df['status'] = 'Pending'
+    if 'type' not in df.columns:
+        df['type'] = 'Παράδοση' # Default type
+    return True, df
 
-# Αρχικοποίηση Session
+# --- UI LOGIC ---
+st.title("🚚 Does4u - Professional Driver Portal")
+
 if 'df' not in st.session_state:
     st.session_state.df = pd.DataFrame()
 
-# 1. Upload & Auto-Geocode
 uploaded_file = st.file_uploader("Ανέβασε τη λίστα σου (CSV)", type="csv")
-if uploaded_file and st.session_state.df.empty:
-    df = pd.read_csv(uploaded_file)
-    df['status'] = 'Pending'
-    with st.spinner('Το Does4u καθαρίζει τις διευθύνσεις...'):
-        coords = df.apply(get_coords, axis=1)
-        df['lat'], df['lon'] = zip(*coords)
-        st.session_state.df = df
-        st.rerun()
 
-# 2. Διαχείριση Στάσεων
-    if not st.session_state.df.empty and 'status' in st.session_state.df.columns:
-        pending = st.session_state.df[st.session_state.df['status'] == 'Pending']
+if uploaded_file:
+    raw_df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
+    success, result = validate_and_process(raw_df)
+    
+    if not success:
+        st.error(result)
+    else:
+        st.session_state.df = result
+        st.success("Λίστα φορτώθηκε με επιτυχία!")
+
+# --- DRIVER WORKFLOW (Η καρδιά του συστήματος) ---
+if not st.session_state.df.empty:
+    pending = st.session_state.df[st.session_state.df['status'] == 'Pending']
+    
+    if not pending.empty:
+        current_idx = pending.index[0]
+        current = st.session_state.df.loc[current_idx]
         
-        if not pending.empty:
-            current = pending.iloc[0]
-            st.subheader(f"📍 Επόμενη Στάση: {current['address']} ({current['type']})")
+        # 1. Επιλογή Τύπου Στάσης (Παράδοση/Παραλαβή)
+        st.subheader(f"📍 Στάση: {current['address']}")
+        st.session_state.df.at[current_idx, 'type'] = st.radio(
+            "Τύπος Στάσης:", ['Παράδοση', 'Παραλαβή'], 
+            index=0 if current['type'] == 'Παράδοση' else 1
+        )
         
+        # 2. Controls
         c1, c2 = st.columns(2)
         if c1.button("✅ Ολοκλήρωση"):
-            st.session_state.df.loc[current.name, 'status'] = 'Done'
+            st.session_state.df.loc[current_idx, 'status'] = 'Done'
             st.rerun()
         if c2.button("⏭️ Skip"):
-            st.session_state.df.loc[current.name, 'status'] = 'Skipped'
+            st.session_state.df.loc[current_idx, 'status'] = 'Skipped'
             st.rerun()
+            
+        # 3. Google Maps Navigation (Deep Link)
+        maps_link = f"https://www.google.com/maps/dir/?api=1&destination={current['address']},{current['city']}"
+        st.link_button("🚀 Έναρξη Πλοήγησης στο Maps", maps_link)
         
-        st.map(pd.DataFrame([current]))
     else:
-        st.success("Όλες οι στάσεις ολοκληρώθηκαν!")
+        st.success("🎉 Όλες οι στάσεις ολοκληρώθηκαν!")
 
-    # 3. Export για ασφάλεια
-    st.write("### Πίνακας Ελέγχου")
-    st.dataframe(st.session_state.df)
-    
-    csv = st.session_state.df.to_csv(index=False).encode('utf-8')
-    st.download_button("💾 Αποθήκευση Προόδου (Export CSV)", csv, "today_progress.csv", "text/csv")
+    # Sidebar: Πίνακας Ελέγχου
+    with st.sidebar:
+        st.write("### Πρόοδος")
+        st.dataframe(st.session_state.df[['address', 'status', 'type']])
