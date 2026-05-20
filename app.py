@@ -1,41 +1,43 @@
 import streamlit as st
 import pandas as pd
+from geopy.geocoders import Nominatim
 
-# --- Λογική Route Planner ---
+# Αρχικοποίηση του geocoder
+geolocator = Nominatim(user_agent="my_route_app")
+
+def get_lat_lon(address):
+    try:
+        location = geolocator.geocode(address + ", Athens, Greece")
+        if location:
+            return location.latitude, location.longitude
+    except:
+        return None, None
+    return None, None
+
 def show_route_planner():
     st.title("📍 Route Planner")
     uploaded_file = st.file_uploader("Ανέβασε το CSV με τις στάσεις σου", type="csv")
 
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
-        if 'status' not in df.columns:
-            df['status'] = 'pending'
-            st.session_state.stops_data = df
+        
+        # Μετατροπή διευθύνσεων σε lat/lon αν δεν υπάρχουν
+        if 'lat' not in df.columns:
+            with st.spinner('Μετατροπή διευθύνσεων...'):
+                coords = df['address'].apply(get_lat_lon)
+                df['lat'], df['lon'] = zip(*coords)
+                st.session_state.stops_data = df.dropna() # Πετάμε όσες δεν βρέθηκαν
 
+        # Εμφάνιση Χάρτη
         if 'stops_data' in st.session_state:
-            # Εμφάνιση Χάρτη
             st.map(st.session_state.stops_data)
-
+            
             # Διαχείριση Στάσεων
-            st.subheader("Τρέχουσα Διαδρομή")
-            for i, row in st.session_state.stops_data.iterrows():
-                if row['status'] == 'pending':
-                    st.write(f"🛑 Στάση: {row['address']}")
-                    col1, col2 = st.columns(2)
-                    if col1.button("✅ Ολοκληρώθηκε", key=f"done_{i}"):
-                        st.session_state.stops_data.at[i, 'status'] = 'done'
-                        st.rerun()
-                    if col2.button("⏭️ Skip", key=f"skip_{i}"):
-                        st.session_state.stops_data.at[i, 'status'] = 'skipped'
-                        st.rerun()
-                    break 
+            st.subheader("Λίστα Στάσεων")
+            st.dataframe(st.session_state.stops_data)
 
-# --- Κεντρική σελίδα App ---
+# Sidebar μενού
 st.sidebar.title("Navigation")
-menu = st.sidebar.selectbox("Επίλεξε Εργαλείο", ["Route Planner", "Other Tools"])
-
+menu = st.sidebar.selectbox("Επίλεξε Εργαλείο", ["Route Planner"])
 if menu == "Route Planner":
     show_route_planner()
-else:
-    st.write("Καλωσήρθες στο DOES4U!")
-    

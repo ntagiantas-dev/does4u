@@ -14,3 +14,4 @@ pandas
 scrapegraphai
 playwright
 feedparser
+geopy
