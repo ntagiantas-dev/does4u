@@ -29,8 +29,13 @@ if 'df' not in st.session_state:
 
 uploaded_file = st.file_uploader("Ανέβασε τη λίστα σου (CSV)", type="csv")
 
-if uploaded_file:
+# 32-40: Διορθωμένο για να μην ξαναδιαβάζει το αρχείο
+if uploaded_file and st.session_state.df.empty: 
     raw_df = pd.read_csv(uploaded_file, encoding='utf-8-sig')
+    
+    # ΠΡΟΣΘΗΚΗ: Βάζουμε το status εδώ μια φορά κατά το φόρτωμα
+    raw_df['status'] = 'Pending' 
+    
     success, result = validate_and_process(raw_df)
     
     if not success:
