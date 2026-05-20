@@ -30,8 +30,27 @@ def show_route_planner():
     st.title("📍 Route Planner")
     uploaded_file = st.file_uploader("Ανέβασε το CSV με τις στάσεις σου", type="csv")
 
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
+    if uploaded_file is not None: # Πιο ασφαλής έλεγχος
+        try:
+            df = pd.read_csv(uploaded_file)
+            
+            # Ελέγχουμε αν υπάρχουν οι σωστές στήλες
+            required_cols = ['address', 'city', 'postal code']
+            if all(col in df.columns for col in required_cols):
+                
+                if 'lat' not in df.columns:
+                    with st.spinner('Μετατροπή διευθύνσεων σε χάρτη...'):
+                        coords = df.apply(get_lat_lon, axis=1)
+                        df['lat'], df['lon'] = zip(*coords)
+                        st.session_state.stops_data = df.dropna()
+                
+                # Εμφάνιση Χάρτη
+                if 'stops_data' in st.session_state:
+                    st.map(st.session_state.stops_data)
+            else:
+                st.error(f"Το αρχείο πρέπει να έχει τις στήλες: {required_cols}")
+        except Exception as e:
+            st.error(f"Σφάλμα κατά την ανάγνωση του αρχείου: {e}")
         
         # Μετατροπή διευθύνσεων σε lat/lon αν δεν υπάρχουν
         if 'lat' not in df.columns:
