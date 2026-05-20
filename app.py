@@ -2,12 +2,14 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 import threading
 import asyncio
 
 # --- CONFIGURATION ---"
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1iNg7OkFbrXjtGH1yiL_x5kef7fBNC66UjZHzDZo4yVk/edit"
+# Σύνδεση με Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Διαβάζουμε το Token από τα Streamlit Secrets
 # Στα Secrets έχεις βάλει: HTTP_API_KEY = "..."
