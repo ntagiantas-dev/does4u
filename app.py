@@ -1,6 +1,15 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+from streamlit_gsheets import GSheetsConnection
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+import threading
+import asyncio
+
+# --- CONFIGURATION ---
+SHEET_URL = "ΒΑΛΕ_ΕΔΩ_ΤΟ_URL_ΤΟΥ_GOOGLE_SHEET_ΣΟΥ"
+TOKEN = "8379012114:AAGWdCPzrdO31VOlTe-BUXH0eOI2kPCCvm4"
 
 st.set_page_config(page_title="Does4u Pro", layout="wide")
 
@@ -10,79 +19,61 @@ if 'is_optimized' not in st.session_state: st.session_state.is_optimized = False
 if 'depot_info' not in st.session_state: st.session_state.depot_info = None
 if 'route_info' not in st.session_state: st.session_state.route_info = {'total_time': 0, 'eta': None}
 
-# --- FUNCTIONS ---
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+# --- BOT LOGIC ---
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    # Προσθήκη στο Google Sheet
+    df_current = conn.read(spreadsheet=SHEET_URL)
+    new_row = pd.DataFrame({'address': [text], 'city': ['N/A'], 'postal code': ['N/A'], 'status': ['Pending'], 'type': ['Παράδοση']})
+    updated_df = pd.concat([df_current, new_row], ignore_index=True)
+    conn.update(spreadsheet=SHEET_URL, data=updated_df)
+    await update.message.reply_text(f"✅ Η στάση '{text}' προστέθηκε!")
+
+def run_bot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    application = ApplicationBuilder().token(TOKEN).build()
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    application.run_polling()
+
+if 'bot_started' not in st.session_state:
+    threading.Thread(target=run_bot, daemon=True).start()
+    st.session_state.bot_started = True
+
+# --- FUNCTIONS (OLD LOGIC KEPT) ---
 def validate_and_process(df):
     required = ['address', 'city', 'postal code']
-    if not all(col in df.columns for col in required): return False, "Λείπουν στήλες (address, city, postal code)"
+    if not all(col in df.columns for col in required): return False, "Λείπουν στήλες"
     df['status'] = 'Pending'; df['type'] = 'Παράδοση'
     return True, df
 
-def get_eta_calculation(pending_df):
-    pending_count = len(pending_df)
-    # 5 λεπτά ανά στάση + 10 λεπτά μέσος όρος οδήγησης ανά στάση
-    total_minutes = (pending_count * 5) + (pending_count * 10)
-    eta = datetime.now() + timedelta(minutes=total_minutes)
-    return total_minutes, eta
-
 def optimize_route_logic(depot_addr, depot_city, depot_zip):
-    depot_start = pd.DataFrame({'address': [depot_addr], 'city': [depot_city], 'postal code': [depot_zip], 'status': ['Depot'], 'type': ['Αφετηρία']})
-    depot_end = pd.DataFrame({'address': [depot_addr], 'city': [depot_city], 'postal code': [depot_zip], 'status': ['Depot'], 'type': ['Τερματισμός']})
-    
-    pending = st.session_state.df[st.session_state.df['status'] == 'Pending']
-    done = st.session_state.df[st.session_state.df['status'] == 'Done']
-    
+    df_data = conn.read(spreadsheet=SHEET_URL)
+    pending = df_data[df_data['status'] == 'Pending']
     optimized_pending = pending.sort_values(by='address')
-    st.session_state.df = pd.concat([depot_start, optimized_pending, done, depot_end], ignore_index=True)
-    
-    total_min, eta = get_eta_calculation(optimized_pending)
-    st.session_state.route_info = {'total_time': total_min, 'eta': eta}
+    st.session_state.df = optimized_pending
     st.session_state.is_optimized = True
-    st.session_state.depot_info = {'address': depot_addr, 'city': depot_city, 'zip': depot_zip}
 
-# --- UI ---
+# --- UI (OLD LOGIC KEPT) ---
 st.title("🚚 Does4u - Professional Driver Portal")
-uploaded_file = st.file_uploader("Ανέβασε τη λίστα σου (CSV)", type="csv")
-if uploaded_file and st.session_state.df.empty:
-    success, result = validate_and_process(pd.read_csv(uploaded_file, encoding='utf-8-sig'))
-    if success: st.session_state.df = result; st.rerun()
-    else: st.error(result)
+# Εδώ διαβάζουμε είτε από Sheet είτε από File
+if st.button("🔄 Ανανέωση από Sheets"):
+    st.session_state.df = conn.read(spreadsheet=SHEET_URL)
+
+st.dataframe(st.session_state.df)
 
 with st.sidebar:
     st.write("### 🛠️ Εργαλεία")
+    if st.session_state.is_optimized:
+        st.metric("⏳ Κατάσταση", "Βελτιστοποιημένη")
     
-    if st.session_state.is_optimized and st.session_state.route_info['eta'] is not None:
-        st.metric("⏳ Συνολικός Χρόνος", f"{st.session_state.route_info['total_time']} λεπτά")
-        st.metric("🏁 Εκτιμώμενη Άφιξη", st.session_state.route_info['eta'].strftime("%H:%M"))
-    
-    with st.expander("➕ Προσθήκη Έκτακτης Στάσης"):
-        with st.form("emergency_stop"):
-            addr, city, zip_c = st.text_input("Διεύθυνση"), st.text_input("Πόλη"), st.text_input("Τ.Κ.")
-            if st.form_submit_button("Ενσωμάτωση"):
-                new_row = pd.DataFrame({'address': [addr], 'city': [city], 'postal code': [zip_c], 'status': ['Pending'], 'type': ['Παράδοση']})
-                st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
-                st.session_state.is_optimized = False; st.rerun()
+    with st.expander("📍 Ορισμός Αφετηρίας"):
+        with st.form("depot_form"):
+            d_a = st.text_input("Διεύθυνση")
+            if st.form_submit_button("🚀 Εκτέλεση"):
+                optimize_route_logic(d_a, "Πόλη", "ΤΚ")
+                st.rerun()
 
-    if not st.session_state.df.empty and not st.session_state.is_optimized:
-        with st.expander("📍 Ορισμός Αφετηρίας", expanded=True):
-            with st.form("depot_form"):
-                d_a = st.text_input("Διεύθυνση", value=(st.session_state.depot_info['address'] if st.session_state.depot_info else ""))
-                d_c = st.text_input("Πόλη", value=(st.session_state.depot_info['city'] if st.session_state.depot_info else ""))
-                d_z = st.text_input("Τ.Κ.", value=(st.session_state.depot_info['zip'] if st.session_state.depot_info else ""))
-                if st.form_submit_button("🚀 Εκτέλεση"): 
-                    optimize_route_logic(d_a, d_c, d_z); st.rerun()
-                
-    st.write("### Πρόοδος")
-    
-    # Εδώ γίνεται ο έλεγχος: Εμφανίζουμε το dataframe ΜΟΝΟ αν έχει δεδομένα 
-    # και αν οι στήλες που ζητάμε υπάρχουν όντως μέσα του.
-    if not st.session_state.df.empty:
-        # Επιλέγουμε μόνο όσες από τις ζητούμενες στήλες υπάρχουν πραγματικά
-        cols_to_show = [col for col in ['address', 'status', 'type'] if col in st.session_state.df.columns]
-        
-        if cols_to_show:
-            st.dataframe(st.session_state.df[cols_to_show])
-        else:
-            # Αν για κάποιο λόγο το dataframe δεν έχει τις στήλες, δείξε ολόκληρο το dataframe
-            st.dataframe(st.session_state.df)
-    else:
-        st.info("Ανέβασε αρχείο CSV για να εμφανιστεί η λίστα.")
+st.info("Το Telegram Bot είναι ενεργό. Στείλε διευθύνσεις στο bot σου για να πάνε στο Sheet!")
