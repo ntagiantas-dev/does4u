@@ -1,43 +1,56 @@
 import streamlit as st
 import pandas as pd
-from geopy.geocoders import Nominatim
+import requests
+import os
 
-# Ρύθμιση για το Geocoding
-geolocator = Nominatim(user_agent="my_route_app")
+# Ρύθμιση σελίδας
+st.set_page_config(page_title="Does4u", layout="wide")
+st.title("📍 Does4u - Geocoding & Mapping")
 
-def get_lat_lon(row):
-    full_address = f"{row['address']}, {row['city']}, {row['postal code']}, Greece"
-    try:
-        location = geolocator.geocode(full_address)
-        if location:
-            return location.latitude, location.longitude
-    except:
-        pass
-    return None, None
+# Φόρτωση API Key από τα secrets
+GEOAPIFY_KEY = st.secrets["GEOAPIFY_API_KEY"]
 
-def show_route_planner():
-    st.title("📍 Route Planner")
-    
-    uploaded_file = st.file_uploader("Ανέβασε το CSV (με στήλες: address, city, postal code)", type="csv")
-
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
+@st.cache_data # Αυτό κάνει το "μαγικό" να μην ξανατρέχει αν δεν αλλάξουν τα δεδομένα
+def get_clean_data(df):
+    results = []
+    for _, row in df.iterrows():
+        address_query = f"{row['address']}, {row['postal code']}, {row['city']}, Greece"
+        url = f"https://api.geoapify.com/v1/geocode/search?text={address_query}&apiKey={GEOAPIFY_KEY}"
         
-        # Έλεγχος αν υπάρχουν οι σωστές στήλες
-        if all(col in df.columns for col in ['address', 'city', 'postal code']):
-            
-            # Μετατροπή μόνο αν δεν έχουμε ήδη lat/lon
-            if 'lat' not in df.columns:
-                with st.spinner('Μετατροπή διευθύνσεων...'):
-                    coords = df.apply(get_lat_lon, axis=1)
-                    df['lat'], df['lon'] = zip(*coords)
-                    st.session_state.stops_data = df.dropna()
-            
-            # Εμφάνιση Χάρτη
-            if 'stops_data' in st.session_state:
-                st.map(st.session_state.stops_data)
-        else:
-            st.error("Το αρχείο πρέπει να έχει τις στήλες: address, city, postal code")
+        try:
+            response = requests.get(url).json()
+            if response['features']:
+                prop = response['features'][0]['properties']
+                results.append({'lat': prop.get('lat'), 'lon': prop.get('lon'), 'formatted': prop.get('formatted')})
+            else:
+                results.append({'lat': None, 'lon': None, 'formatted': None})
+        except:
+            results.append({'lat': None, 'lon': None, 'formatted': None})
+    
+    return pd.concat([df, pd.DataFrame(results)], axis=1)
 
-# Κύριο μενού
-show_route_planner()
+# --- Ροή Εργασίας ---
+# 1. Έλεγχος για το δοκιμαστικό αρχείο
+test_file = "test_addresses.csv"
+if os.path.exists(test_file):
+    st.info(f"Ανιχνεύθηκε το {test_file}! Χρήση του για τις δοκιμές σας.")
+    df = pd.read_csv(test_file)
+else:
+    uploaded_file = st.file_uploader("Ανέβασε το CSV (αν δεν υπάρχει το test_addresses.csv)", type="csv")
+    if uploaded_file:
+        df = pd.read_csv(uploaded_file)
+    else:
+        df = None
+
+# 2. Επεξεργασία
+if df is not None:
+    if st.button("🚀 Καθαρισμός Δεδομένων"):
+        with st.spinner('Το Does4u δουλεύει...'):
+            df_cleaned = get_clean_data(df)
+            st.session_state.df = df_cleaned
+            st.success("Έτοιμο!")
+
+    # 3. Εμφάνιση
+    if 'df' in st.session_state:
+        st.dataframe(st.session_state.df)
+        st.map(st.session_state.df[['lat', 'lon']])
