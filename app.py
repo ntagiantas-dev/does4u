@@ -37,12 +37,12 @@ if uploaded_file and st.session_state.df.empty:
         st.rerun()
 
 # 2. Διαχείριση Στάσεων
-if not st.session_state.df.empty:
-    pending = st.session_state.df[st.session_state.df['status'] == 'Pending']
-    
-    if not pending.empty:
-        current = pending.iloc[0]
-        st.subheader(f"📍 Επόμενη Στάση: {current['address']} ({current['type']})")
+    if not st.session_state.df.empty and 'status' in st.session_state.df.columns:
+        pending = st.session_state.df[st.session_state.df['status'] == 'Pending']
+        
+        if not pending.empty:
+            current = pending.iloc[0]
+            st.subheader(f"📍 Επόμενη Στάση: {current['address']} ({current['type']})")
         
         c1, c2 = st.columns(2)
         if c1.button("✅ Ολοκλήρωση"):
