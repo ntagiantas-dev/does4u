@@ -49,7 +49,9 @@ if uploaded_file and st.session_state.df.empty:
 
 with st.sidebar:
     st.write("### 🛠️ Εργαλεία")
-    if st.session_state.is_optimized:
+    
+    # ΔΙΟΡΘΩΣΗ: Έλεγχος αν υπάρχει όντως τιμή στο eta πριν την εμφάνιση
+    if st.session_state.is_optimized and st.session_state.route_info['eta'] is not None:
         st.metric("⏳ Συνολικός Χρόνος", f"{st.session_state.route_info['total_time']} λεπτά")
         st.metric("🏁 Εκτιμώμενη Άφιξη", st.session_state.route_info['eta'].strftime("%H:%M"))
     
