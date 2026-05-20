@@ -6,9 +6,8 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 import threading
 import asyncio
 
-# --- CONFIGURATION ---
-# Βάλε το URL του Google Sheet σου
-SHEET_URL = "ΒΑΛΕ_ΕΔΩ_ΤΟ_URL_ΤΟΥ_GOOGLE_SHEET_ΣΟΥ"
+# --- CONFIGURATION ---"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1iNg7OkFbrXjtGH1yiL_x5kef7fBNC66UjZHzDZo4yVk/edit"
 
 # Διαβάζουμε το Token από τα Streamlit Secrets
 # Στα Secrets έχεις βάλει: HTTP_API_KEY = "..."
