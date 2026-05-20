@@ -18,3 +18,4 @@ geopy
 python-telegram-bot
 gspread
 oauth2client
+streamlit-gsheets
